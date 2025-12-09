@@ -1,9 +1,10 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // System instruction to guide Gemini to act as a tattoo curator for the Albuquerque market
-const SYSTEM_INSTRUCTION = `
+const CURATOR_SYSTEM_INSTRUCTION = `
 You are InkLink's AI curator, specifically tuned for the Albuquerque, New Mexico tattoo market. 
 Your goal is to understand user tattoo ideas and translate them into search filters or creative concepts.
 
@@ -19,6 +20,14 @@ When a user describes a tattoo, analyze it for:
 Always be concise and helpful.
 `;
 
+// NEW: System Prompt for the Tattoo Project Studio
+const ARTIST_SYSTEM_INSTRUCTION = `
+Act as a veteran tattoo artist with 20 years of experience.
+Your goal is to interpret client ideas into technical "Line Art" or "Stencil" descriptions.
+You value clean lines, high contrast, and anatomical flow.
+You strictly avoid photorealism in descriptions; focus on how the ink should look on skin.
+`;
+
 export const analyzeRequest = async (userQuery: string): Promise<{
   conversationResponse: string;
   filters?: { style?: string; bodyPart?: string; keywords: string[] };
@@ -28,7 +37,7 @@ export const analyzeRequest = async (userQuery: string): Promise<{
       model: 'gemini-2.5-flash',
       contents: userQuery,
       config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
+        systemInstruction: CURATOR_SYSTEM_INSTRUCTION,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -77,16 +86,29 @@ export const generateConceptDescription = async (prompt: string): Promise<string
     }
 }
 
-export const generateTattooDesign = async (prompt: string): Promise<string | null> => {
+// Updated for Tattoo Studio Flow: Stencil Generation
+export const generateTattooDesign = async (prompt: string, bodyZone?: string): Promise<string | null> => {
   try {
+    // Enhanced Prompt for Stencil/Line Art result
+    const refinedPrompt = `
+      Create a professional tattoo stencil design.
+      Subject: ${prompt}
+      Placement Context: To be placed on the ${bodyZone || 'body'}.
+      Style: High contrast black and white line art. Clean outlines. No shading, no grey wash. 
+      Background: Pure white (to be made transparent later).
+      Aesthetic: Minimalist, crisp, ready for thermal transfer.
+    `;
+
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
-        parts: [{ text: `A high quality tattoo design sketch of: ${prompt}. White background, clean lines, professional tattoo flash style. High contrast, artistic. Suitable for a stencil.` }]
+        parts: [{ text: refinedPrompt }]
+      },
+      config: {
+        // Ensuring strictly 1 image
       }
     });
     
-    // Iterate through parts to find the image data
     if (response.candidates && response.candidates[0].content && response.candidates[0].content.parts) {
       for (const part of response.candidates[0].content.parts) {
         if (part.inlineData) {
@@ -101,6 +123,45 @@ export const generateTattooDesign = async (prompt: string): Promise<string | nul
   }
 };
 
+export const generateProjectReport = async (prompt: string, bodyZone: string): Promise<{
+    estimatedHours: number;
+    priceMin: number;
+    priceMax: number;
+    technicalNotes: string;
+}> => {
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `Analyze this tattoo project for the Albuquerque market.
+            Request: "${prompt}"
+            Zone: "${bodyZone}"
+            
+            Output JSON with:
+            - estimatedHours (number)
+            - priceMin (number, assuming $150/hr base)
+            - priceMax (number)
+            - technicalNotes (string, advice for the artist regarding this placement and design)`,
+            config: {
+                systemInstruction: ARTIST_SYSTEM_INSTRUCTION,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        estimatedHours: { type: Type.NUMBER },
+                        priceMin: { type: Type.NUMBER },
+                        priceMax: { type: Type.NUMBER },
+                        technicalNotes: { type: Type.STRING }
+                    }
+                }
+            }
+        });
+        const text = response.text;
+        return text ? JSON.parse(text) : { estimatedHours: 3, priceMin: 450, priceMax: 600, technicalNotes: "Consult artist." };
+    } catch (error) {
+        return { estimatedHours: 3, priceMin: 450, priceMax: 600, technicalNotes: "Error generating estimates." };
+    }
+};
+
 export const generateArtistBio = async (artistName: string, styles: string[], location: string): Promise<string> => {
   try {
     const response = await ai.models.generateContent({
@@ -113,5 +174,50 @@ export const generateArtistBio = async (artistName: string, styles: string[], lo
   } catch (error) {
     console.error("Gemini Bio Generation Error:", error);
     return "Biography temporarily unavailable.";
+  }
+};
+
+// --- CHAT AI FEATURES ---
+
+export const generateSmartReplies = async (history: string, role: string): Promise<string[]> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: `Context: A chat between a Tattoo Client and an Artist.
+      Conversation History:
+      ${history}
+      
+      Task: Generate 3 short, natural, and professional quick replies for the ${role} to send next.
+      Output: JSON Array of strings.`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING }
+        }
+      }
+    });
+
+    const text = response.text;
+    if (!text) return ["Okay", "Sounds good", "Can you send details?"];
+    return JSON.parse(text);
+  } catch (error) {
+    return ["Okay", "Sounds good", "Let me check"];
+  }
+};
+
+export const refineMessageText = async (draft: string, role: string): Promise<string> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: `Rewrite the following chat message to be more professional, polite, and clear.
+      Sender Role: ${role} (Tattoo industry context).
+      Draft: "${draft}"
+      
+      Output: The rewritten string only.`,
+    });
+    return response.text?.trim() || draft;
+  } catch (error) {
+    return draft;
   }
 };
