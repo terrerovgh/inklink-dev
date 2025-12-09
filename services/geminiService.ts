@@ -2,9 +2,15 @@ import { GoogleGenAI, Type } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// System instruction to guide Gemini to act as a tattoo curator
+// System instruction to guide Gemini to act as a tattoo curator for the Albuquerque market
 const SYSTEM_INSTRUCTION = `
-You are InkLink's AI curator. Your goal is to understand user tattoo ideas and translate them into search filters or creative concepts.
+You are InkLink's AI curator, specifically tuned for the Albuquerque, New Mexico tattoo market. 
+Your goal is to understand user tattoo ideas and translate them into search filters or creative concepts.
+
+Context:
+- Albuquerque has a strong "Fine Line", "Black & Grey", "Neo-Traditional", and "Anime/Pop Culture" scene.
+- Users may reference local themes (Zia symbol, Sandia Mountains, desert flora, Breaking Bad, Route 66).
+
 When a user describes a tattoo, analyze it for:
 1. Subject matter (e.g., lion, rose, geometric shape)
 2. Style (e.g., realism, traditional, minimalist, watercolor)
@@ -52,7 +58,7 @@ export const analyzeRequest = async (userQuery: string): Promise<{
   } catch (error) {
     console.error("Gemini Error:", error);
     return {
-      conversationResponse: "I'm having trouble connecting to the creative network. Showing all results.",
+      conversationResponse: "I'm connecting to the local ABQ network. Showing all results.",
       filters: { keywords: [] }
     };
   }
@@ -76,7 +82,7 @@ export const generateTattooDesign = async (prompt: string): Promise<string | nul
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
-        parts: [{ text: `A high quality tattoo design sketch of: ${prompt}. White background, clean lines, professional tattoo flash style. High contrast, artistic.` }]
+        parts: [{ text: `A high quality tattoo design sketch of: ${prompt}. White background, clean lines, professional tattoo flash style. High contrast, artistic. Suitable for a stencil.` }]
       }
     });
     
@@ -101,7 +107,7 @@ export const generateArtistBio = async (artistName: string, styles: string[], lo
       model: 'gemini-2.5-flash',
       contents: `Write a creative, professional, and unique tattoo artist biography for ${artistName} based in ${location}. 
       They specialize in: ${styles.join(', ')}. 
-      Keep it under 60 words. Tone: Artistic, modern, and inviting. Do not use hashtags.`,
+      Keep it under 60 words. Tone: Artistic, modern, and inviting.`,
     });
     return response.text || "Biography temporarily unavailable.";
   } catch (error) {

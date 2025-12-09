@@ -3,189 +3,116 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Navigation from './components/Navigation';
 import GridBackground from './components/GridBackground';
 import SpotlightCard from './components/SpotlightCard';
+import MapExplorer from './components/MapExplorer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, Sparkles, MapPin, DollarSign, Clock, 
   ChevronRight, Heart, Share2, Filter, MoreHorizontal,
   Calendar, CheckCircle, XCircle, Send, MessageSquare,
-  Wand2, Loader2, Info, Zap, Bookmark
+  Wand2, Loader2, Info, Zap, Bookmark, Map as MapIcon, Grid as GridIcon, Gavel
 } from 'lucide-react';
 import { analyzeRequest, generateTattooDesign, generateArtistBio } from './services/geminiService';
 import { Tattoo, MarketRequest, Appointment, Profile, UserRole } from './types';
 
-// --- MOCK DATA ---
-const MOCK_TATTOOS: Tattoo[] = [
-  { 
-    id: '1', artistId: 'a1', artistName: 'Kai Verno', artistAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100', 
-    imageUrl: 'https://images.unsplash.com/photo-1560707303-4e9803d165df?q=80&w=800&auto=format&fit=crop', 
-    style: 'Cyberpunk', bodyPart: 'Forearm', description: 'Glitch art fox', likes: 243, tags: ['fox', 'animal', 'neon', 'glitch'],
-    styleTags: ['Cyberpunk', 'Glitch', 'Neo-Futurism']
-  },
-  { 
-    id: '2', artistId: 'a2', artistName: 'Elena Rose', artistAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100', 
-    imageUrl: 'https://images.unsplash.com/photo-1611501275019-9b5cda994e8d?q=80&w=800&auto=format&fit=crop', 
-    style: 'Neo-Traditional', bodyPart: 'Chest', description: 'Sacred heart dagger', likes: 892, tags: ['heart', 'dagger', 'traditional', 'red'],
-    styleTags: ['Neo-Traditional', 'Old School', 'Color'],
-    isFlash: true, price: 350
-  },
-  { 
-    id: '3', artistId: 'a3', artistName: 'Sato Ink', artistAvatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=100', 
-    imageUrl: 'https://images.unsplash.com/photo-1562962230-16e4623d36e6?q=80&w=800&auto=format&fit=crop', 
-    style: 'Realism', bodyPart: 'Thigh', description: 'Vintage floral composition', likes: 561, tags: ['flower', 'rose', 'vintage', 'botanical'],
-    styleTags: ['Realism', 'Black and Grey', 'Botanical']
-  },
-  { 
-    id: '4', artistId: 'a1', artistName: 'Kai Verno', artistAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100', 
-    imageUrl: 'https://images.unsplash.com/photo-1598371839696-5c5bb00bdc28?q=80&w=800&auto=format&fit=crop', 
-    style: 'Abstract', bodyPart: 'Shoulder', description: 'Fluid smoke lines', likes: 120, tags: ['smoke', 'abstract', 'lines'],
-    styleTags: ['Abstract', 'Flow', 'Minimalist'],
-    isFlash: true, price: 200
-  },
-  { 
-    id: '5', artistId: 'a4', artistName: 'Mikey D', artistAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100', 
-    imageUrl: 'https://images.unsplash.com/photo-1621112904887-419379ce6824?q=80&w=800&auto=format&fit=crop', 
-    style: 'Blackwork', bodyPart: 'Back', description: 'Geometric spine alignment', likes: 884, tags: ['geometry', 'spine', 'blackwork', 'pattern'],
-    styleTags: ['Blackwork', 'Geometric', 'Ornamental']
-  },
-  { 
-    id: '6', artistId: 'a5', artistName: 'Sarah Ink', artistAvatar: 'https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=100', 
-    imageUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb39279c23?q=80&w=800&auto=format&fit=crop', 
-    style: 'Watercolor', bodyPart: 'Arm', description: 'Splatter Wolf', likes: 432, tags: ['wolf', 'watercolor', 'color', 'animal'],
-    styleTags: ['Watercolor', 'Abstract', 'Color']
-  },
-  { 
-    id: '7', artistId: 'a6', artistName: 'Leo Geometric', artistAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100', 
-    imageUrl: 'https://images.unsplash.com/photo-1550537687-c9135742ca59?q=80&w=800&auto=format&fit=crop', 
-    style: 'Geometric', bodyPart: 'Forearm', description: 'Sacred Geometry Mandala', likes: 315, tags: ['mandala', 'sacred geometry', 'dotwork'],
-    styleTags: ['Geometric', 'Dotwork', 'Blackwork'],
-    isFlash: true, price: 400
-  },
-  { 
-    id: '8', artistId: 'a7', artistName: 'Mia Sketch', artistAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100', 
-    imageUrl: 'https://images.unsplash.com/photo-1590246294305-9e342390317e?q=80&w=800&auto=format&fit=crop', 
-    style: 'Illustrative', bodyPart: 'Calf', description: 'Whimsical Forest Mushroom', likes: 198, tags: ['mushroom', 'nature', 'fairy'],
-    styleTags: ['Illustrative', 'Sketch', 'Fantasy'],
-    isFlash: true, price: 180
-  },
-  { 
-    id: '9', artistId: 'a8', artistName: 'Kenji Tato', artistAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100', 
-    imageUrl: 'https://images.unsplash.com/photo-1562962230-16e4623d36e6?q=80&w=800&auto=format&fit=crop', 
-    style: 'Japanese', bodyPart: 'Sleeve', description: 'Traditional Dragon Koi', likes: 650, tags: ['dragon', 'koi', 'waves'],
-    styleTags: ['Japanese', 'Irezumi', 'Traditional']
-  },
-  { 
-    id: '10', artistId: 'a9', artistName: 'Luna Color', artistAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100', 
-    imageUrl: 'https://images.unsplash.com/photo-1525439722822-29729a674172?q=80&w=800&auto=format&fit=crop', 
-    style: 'Watercolor', bodyPart: 'Back', description: 'Nebula Space Scene', likes: 520, tags: ['space', 'galaxy', 'stars'],
-    styleTags: ['Watercolor', 'Cosmic', 'Abstract']
-  },
-  { 
-    id: '11', artistId: 'a10', artistName: 'Koa Tribal', artistAvatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100', 
-    imageUrl: 'https://images.unsplash.com/photo-1568515045052-f9a854d70bfd?q=80&w=800&auto=format&fit=crop', 
-    style: 'Tribal', bodyPart: 'Shoulder', description: 'Polynesian Armor', likes: 410, tags: ['tribal', 'polynesian', 'maori'],
-    styleTags: ['Tribal', 'Blackwork', 'Cultural'],
-    isFlash: true, price: 500
-  },
-  {
-    id: '12', artistId: 'a1', artistName: 'Kai Verno', artistAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
-    imageUrl: 'https://images.unsplash.com/photo-1598371839696-5c5bb00bdc28?q=80&w=800&auto=format&fit=crop',
-    style: 'Cyberpunk', bodyPart: 'Leg', description: 'Circuitry Pattern', likes: 150, tags: ['circuit', 'tech', 'pattern'],
-    styleTags: ['Cyberpunk', 'Blackwork'],
-    isFlash: true, price: 250
-  }
-];
-
+// --- MOCK DATA (ALBUQUERQUE CONTEXT) ---
 const MOCK_ARTISTS: Profile[] = [
   {
-    id: 'a1', role: UserRole.ARTIST, name: 'Kai Verno', handle: '@kai.verno',
-    bio: "Forging future-primitive aesthetics in the heart of Brooklyn. Kai blends biomechanical textures with cyberpunk themes, creating high-contrast blackwork that transforms skin into armor.",
-    location: 'Brooklyn, NY', styleTags: ['Cyberpunk', 'Biomechanical', 'Blackwork'],
-    pricing: { min: 250, hourly: 180 }, verified: true, rating: 4.9, reviewCount: 124,
-    avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
+    id: 'a1', role: UserRole.ARTIST, name: 'Archetype Tattoo', handle: '@archetype.abq',
+    bio: "Located in the heart of Nob Hill. We specialize in custom large-scale work, fine line, and geometric patterning. Collective of award-winning artists.",
+    location: 'Nob Hill, ABQ', coordinates: { lat: 35.0820, lng: -106.6050 }, distance: '0.4 mi', availability: 'booking_future',
+    styleTags: ['Geometric', 'Blackwork', 'Fine Line'],
+    pricing: { min: 150, hourly: 180 }, verified: true, rating: 4.9, reviewCount: 342,
+    avatarUrl: 'https://images.unsplash.com/photo-1598371839696-5c5bb00bdc28?q=80&w=400&auto=format&fit=crop',
     coverUrl: 'https://images.unsplash.com/photo-1598371839696-5c5bb00bdc28?q=80&w=2000&auto=format&fit=crop'
   },
   {
-    id: 'a2', role: UserRole.ARTIST, name: 'Elena Rose', handle: '@elena.rose',
-    bio: "Portland-based artist specializing in bold, vibrant Neo-Traditional designs. Elena breathes new life into classic motifs with saturated color palettes and clean, timeless linework.",
-    location: 'Portland, OR', styleTags: ['Neo-Traditional', 'Old School', 'Color'],
-    pricing: { min: 150, hourly: 130 }, verified: true, rating: 4.8, reviewCount: 89,
-    avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400',
+    id: 'a2', role: UserRole.ARTIST, name: 'Por Vida Tattoo', handle: '@porvida.nm',
+    bio: "New Mexico's premier shop for traditional Black & Grey and Chicano style lettering. Authentic roots in the 505 culture.",
+    location: 'Downtown ABQ', coordinates: { lat: 35.0844, lng: -106.6504 }, distance: '2.1 mi', availability: 'available_now',
+    styleTags: ['Black & Grey', 'Chicano', 'Lettering'],
+    pricing: { min: 100, hourly: 150 }, verified: true, rating: 4.8, reviewCount: 890,
+    avatarUrl: 'https://images.unsplash.com/photo-1611501275019-9b5cda994e8d?q=80&w=400&auto=format&fit=crop',
     coverUrl: 'https://images.unsplash.com/photo-1611501275019-9b5cda994e8d?q=80&w=2000&auto=format&fit=crop'
   },
   {
-    id: 'a3', role: UserRole.ARTIST, name: 'Sato Ink', handle: '@sato.ink',
-    bio: "Mastering the delicate balance of light and shadow in Tokyo. Sato specializes in hyper-realistic botanical black and grey work, capturing the fleeting beauty of nature.",
-    location: 'Tokyo, Japan', styleTags: ['Realism', 'Black and Grey', 'Botanical'],
-    pricing: { min: 300, hourly: 200 }, verified: true, rating: 5.0, reviewCount: 210,
-    avatarUrl: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=400',
+    id: 'a3', role: UserRole.ARTIST, name: 'True Grit', handle: '@truegrit.abq',
+    bio: "Bold lines, bright colors. Specializing in American Traditional and Neo-Traditional. Walk-ins welcome every Friday.",
+    location: 'Northeast Heights', coordinates: { lat: 35.1100, lng: -106.5500 }, distance: '4.5 mi', availability: 'available_now',
+    styleTags: ['American Traditional', 'Old School', 'Color'],
+    pricing: { min: 120, hourly: 160 }, verified: true, rating: 4.7, reviewCount: 210,
+    avatarUrl: 'https://images.unsplash.com/photo-1562962230-16e4623d36e6?q=80&w=400&auto=format&fit=crop',
     coverUrl: 'https://images.unsplash.com/photo-1562962230-16e4623d36e6?q=80&w=2000&auto=format&fit=crop'
   },
   {
-    id: 'a4', role: UserRole.ARTIST, name: 'Mikey D', handle: '@mikey.d',
-    bio: "London's architect of the skin. Mikey constructs intricate geometric patterns and ornamental blackwork, focusing on precision, symmetry, and flow with the body's natural lines.",
-    location: 'London, UK', styleTags: ['Blackwork', 'Geometric', 'Ornamental'],
-    pricing: { min: 200, hourly: 150 }, verified: false, rating: 4.7, reviewCount: 45,
-    avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400',
-    coverUrl: 'https://images.unsplash.com/photo-1621112904887-419379ce6824?q=80&w=2000&auto=format&fit=crop'
-  },
-  {
-    id: 'a5', role: UserRole.ARTIST, name: 'Sarah Ink', handle: '@sarah.ink',
-    bio: "Austin-based artist turning skin into canvas. Sarah's watercolor style blends fluid abstract splashes with vibrant color, creating soft, painterly pieces full of movement.",
-    location: 'Austin, TX', styleTags: ['Watercolor', 'Abstract', 'Color'],
-    pricing: { min: 180, hourly: 140 }, verified: true, rating: 4.9, reviewCount: 156,
+    id: 'a4', role: UserRole.ARTIST, name: 'Route 66 Fine Line', handle: '@rt66.fineline',
+    bio: "Specializing in micro-realism and single needle delicate work. The go-to spot for intricate floral and anime pieces.",
+    location: 'Central Ave, ABQ', coordinates: { lat: 35.0810, lng: -106.6200 }, distance: '1.2 mi', availability: 'booking_future',
+    styleTags: ['Fine Line', 'Micro Realism', 'Anime'],
+    pricing: { min: 200, hourly: 200 }, verified: true, rating: 5.0, reviewCount: 156,
     avatarUrl: 'https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=400',
     coverUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb39279c23?q=80&w=2000&auto=format&fit=crop'
   },
   {
-    id: 'a6', role: UserRole.ARTIST, name: 'Leo Geometric', handle: '@leo.geo',
-    bio: "Berlin's dotwork specialist. Leo creates hypnotic geometric mandalas and sacred geometry patterns, utilizing precise pointillism to build depth and texture.",
-    location: 'Berlin, DE', styleTags: ['Geometric', 'Dotwork', 'Blackwork'],
-    pricing: { min: 220, hourly: 160 }, verified: true, rating: 4.8, reviewCount: 92,
-    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400',
-    coverUrl: 'https://images.unsplash.com/photo-1550537687-c9135742ca59?q=80&w=2000&auto=format&fit=crop'
-  },
-  {
-    id: 'a7', role: UserRole.ARTIST, name: 'Mia Sketch', handle: '@mia.draws',
-    bio: "Illustrating dreams in Seattle. Mia specializes in whimsical, sketch-style tattoos, bringing fantasy creatures and storybook elements to life with a raw, hand-drawn aesthetic.",
-    location: 'Seattle, WA', styleTags: ['Illustrative', 'Sketch', 'Fantasy'],
-    pricing: { min: 160, hourly: 140 }, verified: false, rating: 4.6, reviewCount: 38,
-    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400',
-    coverUrl: 'https://images.unsplash.com/photo-1590246294305-9e342390317e?q=80&w=2000&auto=format&fit=crop'
-  },
-  {
-    id: 'a8', role: UserRole.ARTIST, name: 'Kenji Tato', handle: '@kenji.irezumi',
-    bio: "Preserving tradition in Kyoto. Kenji honors the ancient art of Irezumi, crafting powerful Japanese bodysuits featuring dragons, koi, and waves with authentic flow and history.",
-    location: 'Kyoto, Japan', styleTags: ['Japanese', 'Irezumi', 'Traditional'],
-    pricing: { min: 400, hourly: 250 }, verified: true, rating: 5.0, reviewCount: 310,
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
-    coverUrl: 'https://images.unsplash.com/photo-1562962230-16e4623d36e6?q=80&w=2000&auto=format&fit=crop'
-  },
-  {
-    id: 'a9', role: UserRole.ARTIST, name: 'Luna Color', handle: '@luna.space',
-    bio: "Capturing the cosmos in Miami. Luna specializes in vibrant watercolor galaxy scenes, blending nebulas and stars into abstract, colorful compositions that defy gravity.",
-    location: 'Miami, FL', styleTags: ['Watercolor', 'Cosmic', 'Abstract'],
-    pricing: { min: 180, hourly: 150 }, verified: true, rating: 4.8, reviewCount: 112,
+    id: 'a5', role: UserRole.ARTIST, name: 'Starry Ink', handle: '@starry.abq',
+    bio: "Cosmic, watercolor, and abstract designs. Located near the University area.",
+    location: 'University Blvd', coordinates: { lat: 35.0900, lng: -106.6150 }, distance: '0.8 mi', availability: 'available_now',
+    styleTags: ['Watercolor', 'Abstract', 'Cosmic'],
+    pricing: { min: 140, hourly: 140 }, verified: false, rating: 4.6, reviewCount: 45,
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
     coverUrl: 'https://images.unsplash.com/photo-1525439722822-29729a674172?q=80&w=2000&auto=format&fit=crop'
+  }
+];
+
+const MOCK_TATTOOS: Tattoo[] = [
+  { 
+    id: '1', artistId: 'a1', artistName: 'Archetype Tattoo', artistAvatar: MOCK_ARTISTS[0].avatarUrl, 
+    imageUrl: 'https://images.unsplash.com/photo-1560707303-4e9803d165df?q=80&w=800&auto=format&fit=crop', 
+    style: 'Geometric', bodyPart: 'Forearm', description: 'Sacred geometry sleeve', likes: 243, tags: ['geometry', 'dotwork', 'blackwork'],
+    styleTags: ['Geometric', 'Blackwork']
   },
-  {
-    id: 'a10', role: UserRole.ARTIST, name: 'Koa Tribal', handle: '@koa.ink',
-    bio: "Honoring ancestry in Honolulu. Koa specializes in traditional Polynesian and Maori tribal markings, hand-crafting meaningful patterns that tell personal and cultural stories.",
-    location: 'Honolulu, HI', styleTags: ['Tribal', 'Blackwork', 'Cultural'],
-    pricing: { min: 250, hourly: 180 }, verified: true, rating: 4.9, reviewCount: 180,
-    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400',
-    coverUrl: 'https://images.unsplash.com/photo-1568515045052-f9a854d70bfd?q=80&w=2000&auto=format&fit=crop'
+  { 
+    id: '2', artistId: 'a2', artistName: 'Por Vida Tattoo', artistAvatar: MOCK_ARTISTS[1].avatarUrl, 
+    imageUrl: 'https://images.unsplash.com/photo-1590246294305-9e342390317e?q=80&w=800&auto=format&fit=crop', 
+    style: 'Black & Grey', bodyPart: 'Chest', description: 'Smile Now Cry Later', likes: 892, tags: ['chicano', 'masks', 'traditional'],
+    styleTags: ['Black & Grey', 'Chicano'],
+    isFlash: true, price: 350
+  },
+  { 
+    id: '3', artistId: 'a4', artistName: 'Route 66 Fine Line', artistAvatar: MOCK_ARTISTS[3].avatarUrl, 
+    imageUrl: 'https://images.unsplash.com/photo-1611501275019-9b5cda994e8d?q=80&w=800&auto=format&fit=crop', 
+    style: 'Micro Realism', bodyPart: 'Wrist', description: 'Single needle rose', likes: 561, tags: ['rose', 'floral', 'fineline'],
+    styleTags: ['Fine Line', 'Realism']
+  },
+  { 
+    id: '4', artistId: 'a3', artistName: 'True Grit', artistAvatar: MOCK_ARTISTS[2].avatarUrl, 
+    imageUrl: 'https://images.unsplash.com/photo-1598371839696-5c5bb00bdc28?q=80&w=800&auto=format&fit=crop', 
+    style: 'Traditional', bodyPart: 'Leg', description: 'Panther head', likes: 120, tags: ['panther', 'traditional', 'old school'],
+    styleTags: ['American Traditional', 'Color'],
+    isFlash: true, price: 200
+  },
+  { 
+    id: '5', artistId: 'a4', artistName: 'Route 66 Fine Line', artistAvatar: MOCK_ARTISTS[3].avatarUrl, 
+    imageUrl: 'https://images.unsplash.com/photo-1621112904887-419379ce6824?q=80&w=800&auto=format&fit=crop', 
+    style: 'Anime', bodyPart: 'Arm', description: 'Studio Ghibli Scene', likes: 884, tags: ['anime', 'ghibli', 'color'],
+    styleTags: ['Anime', 'Illustrative']
+  },
+  { 
+    id: '6', artistId: 'a1', artistName: 'Archetype Tattoo', artistAvatar: MOCK_ARTISTS[0].avatarUrl, 
+    imageUrl: 'https://images.unsplash.com/photo-1550537687-c9135742ca59?q=80&w=800&auto=format&fit=crop', 
+    style: 'Blackwork', bodyPart: 'Back', description: 'Abstract spinal flow', likes: 432, tags: ['abstract', 'blackwork', 'flow'],
+    styleTags: ['Blackwork', 'Abstract']
   }
 ];
 
 const MOCK_REQUESTS: MarketRequest[] = [
-  { id: 'r1', clientId: 'c1', clientName: 'Sarah J.', title: 'Minimalist Mountain Range', description: 'Looking for fine line work of the Swiss Alps. Approx 3x5 inches.', budgetRange: '$200 - $400', location: 'Brooklyn, NY', style: 'Fine Line', status: 'open', createdAt: '2h ago', bids: 3 },
-  { id: 'r2', clientId: 'c2', clientName: 'Davide B.', title: 'Japanese Dragon Sleeve', description: 'Full sleeve, black and grey. Needs to cover an old scar.', budgetRange: '$2000+', location: 'Los Angeles, CA', style: 'Irezumi', status: 'open', createdAt: '5h ago', bids: 12 },
+  { id: 'r1', clientId: 'c1', clientName: 'Elena G.', title: 'Zia Symbol with Yucca', description: 'Looking for a minimalist Zia symbol incorporating yucca flowers. Placing it on my ankle. Approx 3 inches.', budgetRange: '$150 - $250', location: 'Nob Hill', style: 'Fine Line', status: 'open', createdAt: '2h ago', bids: 3 },
+  { id: 'r2', clientId: 'c2', clientName: 'Marcus T.', title: 'Breaking Bad Heisenberg Portrait', description: 'Realistic black and grey portrait for my calf. Want high detail.', budgetRange: '$800 - $1200', location: 'Westside', style: 'Realism', status: 'open', createdAt: '5h ago', bids: 12 },
+  { id: 'r3', clientId: 'c3', clientName: 'Sarah M.', title: 'Balloon Fiesta Scene', description: 'Colorful hot air balloons over the Sandias. Watercolor style.', budgetRange: '$400 - $600', location: 'Northeast Heights', style: 'Watercolor', status: 'open', createdAt: '1d ago', bids: 5 },
 ];
 
 const MOCK_APPOINTMENTS: Appointment[] = [
-  { id: 'ap1', clientName: 'Sarah J.', artistName: 'Kai Verno', date: 'Oct 24', time: '14:00', status: 'confirmed', type: 'Session', depositPaid: true },
-  { id: 'ap2', clientName: 'Mike R.', artistName: 'Kai Verno', date: 'Oct 25', time: '10:00', status: 'pending', type: 'Consultation', depositPaid: false },
+  { id: 'ap1', clientName: 'Elena G.', artistName: 'Archetype Tattoo', date: 'Oct 24', time: '14:00', status: 'confirmed', type: 'Session', depositPaid: true },
+  { id: 'ap2', clientName: 'Marcus T.', artistName: 'Por Vida Tattoo', date: 'Oct 25', time: '10:00', status: 'pending', type: 'Consultation', depositPaid: false },
 ];
 
 // --- APP COMPONENT ---
@@ -256,6 +183,7 @@ const DiscoveryFeed: React.FC<{
 }> = ({ onArtistClick, savedTattooIds, onToggleSave }) => {
   const [search, setSearch] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
   const [aiAnalysis, setAiAnalysis] = useState<{message: string, tags: string[]} | null>(null);
   const [activeTattoos, setActiveTattoos] = useState(MOCK_TATTOOS);
 
@@ -276,11 +204,9 @@ const DiscoveryFeed: React.FC<{
       tags: result.filters?.keywords || []
     });
 
-    // Basic client-side filtering based on AI results
     const filtered = MOCK_TATTOOS.filter(t => {
       const styleMatch = result.filters?.style ? t.style.toLowerCase().includes(result.filters.style.toLowerCase()) : true;
       const bodyMatch = result.filters?.bodyPart ? t.bodyPart.toLowerCase().includes(result.filters.bodyPart.toLowerCase()) : true;
-      // Very basic fuzzy keyword matching
       const keywordMatch = result.filters?.keywords.some(k => 
         t.description.toLowerCase().includes(k.toLowerCase()) || 
         t.tags?.some(tag => tag.toLowerCase().includes(k.toLowerCase())) ||
@@ -290,35 +216,52 @@ const DiscoveryFeed: React.FC<{
       return styleMatch && (bodyMatch || keywordMatch);
     });
 
-    setActiveTattoos(filtered.length > 0 ? filtered : MOCK_TATTOOS); // Fallback if too strict
+    setActiveTattoos(filtered.length > 0 ? filtered : MOCK_TATTOOS);
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-8">
-      {/* Search Section */}
-      <div className="sticky top-24 z-30 flex flex-col items-center w-full pointer-events-none gap-4">
-        <form onSubmit={handleSearch} className="pointer-events-auto w-full max-w-2xl relative group">
-          <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          <div className="bg-surface/80 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl flex items-center px-6 py-4 gap-4 transition-all focus-within:ring-1 focus-within:ring-white/20">
-            {isAnalyzing ? <Loader2 className="w-5 h-5 text-indigo-400 animate-spin" /> : <Sparkles className="w-5 h-5 text-indigo-400" />}
-            <input 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Describe your vision (e.g., 'Neo-traditional tiger on forearm')..." 
-              className="bg-transparent border-none outline-none flex-1 text-sm md:text-base placeholder:text-muted/70 text-white"
-            />
-            <button type="submit" className="bg-white text-black p-2 rounded-full hover:bg-zinc-200 transition-colors">
-              <Search className="w-4 h-4" />
-            </button>
-          </div>
-        </form>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
+      {/* Search & Toggle Section */}
+      <div className="sticky top-24 z-30 flex flex-col gap-4">
+        <div className="flex gap-4 items-center">
+            <form onSubmit={handleSearch} className="flex-1 relative group">
+            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="bg-surface/80 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl flex items-center px-6 py-4 gap-4 transition-all focus-within:ring-1 focus-within:ring-white/20">
+                {isAnalyzing ? <Loader2 className="w-5 h-5 text-indigo-400 animate-spin" /> : <Sparkles className="w-5 h-5 text-indigo-400" />}
+                <input 
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Describe your vision (e.g., 'Neo-traditional Zia symbol')..." 
+                className="bg-transparent border-none outline-none flex-1 text-sm md:text-base placeholder:text-muted/70 text-white"
+                />
+                <button type="submit" className="bg-white text-black p-2 rounded-full hover:bg-zinc-200 transition-colors">
+                <Search className="w-4 h-4" />
+                </button>
+            </div>
+            </form>
+
+            <div className="bg-surface/80 backdrop-blur-xl border border-white/10 rounded-full p-1 flex">
+                <button 
+                    onClick={() => setViewMode('grid')}
+                    className={`p-3 rounded-full transition-all ${viewMode === 'grid' ? 'bg-white text-black shadow-lg' : 'text-zinc-400 hover:text-white'}`}
+                >
+                    <GridIcon className="w-5 h-5" />
+                </button>
+                <button 
+                    onClick={() => setViewMode('map')}
+                    className={`p-3 rounded-full transition-all ${viewMode === 'map' ? 'bg-white text-black shadow-lg' : 'text-zinc-400 hover:text-white'}`}
+                >
+                    <MapIcon className="w-5 h-5" />
+                </button>
+            </div>
+        </div>
 
         {/* AI Insight Chip */}
         <AnimatePresence>
           {aiAnalysis && (
             <motion.div 
               initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }}
-              className="pointer-events-auto bg-surfaceHighlight/90 backdrop-blur border border-white/10 px-4 py-2 rounded-xl text-sm text-zinc-300 flex items-center gap-3 shadow-lg"
+              className="self-start pointer-events-auto bg-surfaceHighlight/90 backdrop-blur border border-white/10 px-4 py-2 rounded-xl text-sm text-zinc-300 flex items-center gap-3 shadow-lg"
             >
               <Wand2 className="w-4 h-4 text-purple-400" />
               <span>{aiAnalysis.message}</span>
@@ -333,48 +276,66 @@ const DiscoveryFeed: React.FC<{
         </AnimatePresence>
       </div>
 
-      {/* Masonry Grid */}
-      <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6 pt-6">
-        {activeTattoos.map((tattoo) => {
-          const isSaved = savedTattooIds.includes(tattoo.id);
-          return (
-            <SpotlightCard key={tattoo.id} className="break-inside-avoid group bg-surface">
-              <div className="relative">
-                  <img src={tattoo.imageUrl} alt={tattoo.description} className="w-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
-                      <h3 className="text-lg font-medium font-display leading-none mb-1 text-white">{tattoo.description}</h3>
-                      <p className="text-sm text-zinc-400 mb-2">{tattoo.style} • {tattoo.bodyPart}</p>
-                      
-                      {tattoo.styleTags && (
-                          <div className="flex flex-wrap gap-1 mb-4">
-                              {tattoo.styleTags.slice(0, 3).map(tag => (
-                                  <span key={tag} className="text-[10px] bg-white/10 text-zinc-300 px-2 py-0.5 rounded-full backdrop-blur-sm">
-                                      {tag}
-                                  </span>
-                              ))}
-                          </div>
-                      )}
-                      
-                      <div className="flex items-center justify-between">
-                          <button onClick={() => onArtistClick(tattoo.artistId)} className="flex items-center gap-2 hover:bg-white/10 rounded-full pr-3 py-1 transition-colors">
-                            <img src={tattoo.artistAvatar} className="w-6 h-6 rounded-full ring-1 ring-white/20" />
-                            <span className="text-xs font-medium text-zinc-300">@{tattoo.artistName}</span>
-                          </button>
-                          <div className="flex gap-2">
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); onToggleSave(tattoo.id); }}
-                              className={`p-2 backdrop-blur-md rounded-full transition-all ${isSaved ? 'bg-pink-500 text-white' : 'bg-white/10 text-white hover:bg-white hover:text-black'}`}
-                            >
-                                <Heart className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
+      {/* Main Content Area */}
+      {viewMode === 'map' ? (
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }}>
+             <div className="mb-4 flex items-center gap-2">
+                <div className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Live Availability
+                </div>
+                <span className="text-zinc-500 text-sm">Showing artists near UNM / Nob Hill</span>
+             </div>
+             <MapExplorer artists={MOCK_ARTISTS} onArtistSelect={onArtistClick} />
+          </motion.div>
+      ) : (
+        <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6 pt-2">
+            {activeTattoos.map((tattoo) => {
+            const isSaved = savedTattooIds.includes(tattoo.id);
+            return (
+                <SpotlightCard key={tattoo.id} className="break-inside-avoid group bg-surface">
+                <div className="relative">
+                    <img src={tattoo.imageUrl} alt={tattoo.description} className="w-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
+                        <h3 className="text-lg font-medium font-display leading-none mb-1 text-white">{tattoo.description}</h3>
+                        <p className="text-sm text-zinc-400 mb-2">{tattoo.style} • {tattoo.bodyPart}</p>
+                        
+                        {tattoo.styleTags && (
+                            <div className="flex flex-wrap gap-1 mb-4">
+                                {tattoo.styleTags.slice(0, 3).map(tag => (
+                                    <span key={tag} className="text-[10px] bg-white/10 text-zinc-300 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                                        {tag}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                        
+                        <div className="flex items-center justify-between">
+                            <button onClick={() => onArtistClick(tattoo.artistId)} className="flex items-center gap-2 hover:bg-white/10 rounded-full pr-3 py-1 transition-colors">
+                                <img src={tattoo.artistAvatar} className="w-6 h-6 rounded-full ring-1 ring-white/20" />
+                                <span className="text-xs font-medium text-zinc-300">@{tattoo.artistName}</span>
                             </button>
-                          </div>
-                      </div>
-                  </div>
-              </div>
-            </SpotlightCard>
-          );
-        })}
-      </div>
+                            <div className="flex gap-2">
+                                <button 
+                                onClick={(e) => { e.stopPropagation(); onToggleSave(tattoo.id); }}
+                                className={`p-2 backdrop-blur-md rounded-full transition-all ${isSaved ? 'bg-pink-500 text-white' : 'bg-white/10 text-white hover:bg-white hover:text-black'}`}
+                                >
+                                    <Heart className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {tattoo.isFlash && (
+                        <div className="absolute top-3 right-3 bg-amber-500 text-black text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-lg">
+                            <Zap className="w-3 h-3 fill-current" /> FLASH
+                        </div>
+                    )}
+                </div>
+                </SpotlightCard>
+            );
+            })}
+        </div>
+      )}
     </motion.div>
   );
 };
@@ -401,14 +362,14 @@ const CanvasStudio: React.FC = () => {
                     </div>
                     <h1 className="text-3xl font-display font-bold mb-4 text-white">AI Tattoo Canvas</h1>
                     <p className="text-zinc-400 mb-8 leading-relaxed">
-                        Describe your dream tattoo concept. Our AI model allows you to visualize style, placement, and composition instantly.
+                        Describe your dream tattoo concept. Our AI, tuned for Albuquerque styles, allows you to visualize style, placement, and composition instantly.
                     </p>
                     
                     <div className="space-y-4">
                         <textarea 
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
-                            placeholder="A geometric wolf head with floral accents, fine line style, black and white..."
+                            placeholder="A neo-traditional roadrunner with cactus flowers, geometric background..."
                             className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 h-32 resize-none"
                         />
                         <button 
@@ -452,7 +413,7 @@ const Marketplace: React.FC = () => {
       <div className="flex items-end justify-between mb-8">
         <div>
           <h1 className="text-3xl font-display font-bold tracking-tight">Marketplace</h1>
-          <p className="text-muted mt-2">Open requests from clients worldwide.</p>
+          <p className="text-muted mt-2">Reverse Auction: Post your idea, get bids from local artists.</p>
         </div>
         <div className="flex gap-2">
           <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 bg-surface hover:bg-white/5 text-sm transition-colors text-zinc-300">
@@ -496,9 +457,14 @@ const Marketplace: React.FC = () => {
                 <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {req.location}</span>
                 <span className="flex items-center gap-1"><Sparkles className="w-3 h-3" /> {req.style}</span>
               </div>
-              <button className="text-sm font-medium text-white hover:underline decoration-zinc-500 underline-offset-4">
-                View Details
-              </button>
+              <div className="flex gap-3">
+                 <button className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
+                    Details
+                 </button>
+                 <button className="bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 px-4 py-1.5 rounded-lg text-sm font-bold hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2">
+                    <Gavel className="w-3 h-3" /> Bid
+                 </button>
+              </div>
             </div>
           </SpotlightCard>
         ))}
@@ -517,7 +483,6 @@ const ArtistProfile: React.FC<{ artistId: string; onBack: () => void }> = ({ art
     const foundArtist = MOCK_ARTISTS.find(a => a.id === artistId);
     if (foundArtist) {
         setArtist(foundArtist);
-        // If bio is somehow missing, we could trigger generation here, but we have pre-filled them.
         setIsBioLoading(false); 
     }
   }, [artistId]);
@@ -560,6 +525,9 @@ const ArtistProfile: React.FC<{ artistId: string; onBack: () => void }> = ({ art
               <span className="flex items-center gap-1 text-white"><MapPin className="w-4 h-4" /> {artist.location}</span>
               <span className="w-1 h-1 bg-zinc-600 rounded-full"></span>
               <span className="flex items-center gap-1 text-yellow-400"><Heart className="w-4 h-4 fill-current" /> {artist.rating} ({artist.reviewCount} reviews)</span>
+              {artist.availability === 'available_now' && (
+                  <span className="ml-auto bg-emerald-500 text-black px-3 py-1 rounded-full text-xs font-bold animate-pulse">WALK-INS AVAILABLE</span>
+              )}
             </div>
           </div>
           <div className="flex gap-3 mb-2 w-full md:w-auto">
@@ -714,8 +682,12 @@ const ArtistProfile: React.FC<{ artistId: string; onBack: () => void }> = ({ art
                                 <span className="text-zinc-400">Consultation Fee</span>
                                 <span className="text-white">$50.00</span>
                             </div>
+                            <div className="flex justify-between text-sm mb-4">
+                                <span className="text-zinc-400">NM Gross Receipts Tax (est.)</span>
+                                <span className="text-white">$3.94</span>
+                            </div>
                             <button className="w-full py-4 bg-white text-black rounded-xl font-bold hover:bg-zinc-200 transition-colors shadow-lg shadow-white/10">
-                                Confirm Request ($50.00)
+                                Confirm Request ($53.94)
                             </button>
                             <p className="text-center text-xs text-zinc-500 mt-4">Secure payment via Stripe. Fully refundable up to 48h before.</p>
                         </div>

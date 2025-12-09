@@ -11,7 +11,9 @@ export interface Profile {
   handle: string;
   bio: string;
   location: string;
-  coordinates?: { lat: number; lng: number };
+  coordinates: { lat: number; lng: number };
+  distance?: string; // Calculated distance from user
+  availability: 'available_now' | 'booking_future' | 'closed';
   styleTags: string[];
   pricing: {
     min: number;

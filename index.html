@@ -43,6 +43,7 @@
       }
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <style>
       body {
         background-color: #09090b;
@@ -74,6 +75,25 @@
           -ms-overflow-style: none;
           scrollbar-width: none;
       }
+      
+      /* Leaflet dark mode overrides */
+      .leaflet-container {
+        background: #09090b !important;
+        font-family: 'Inter', sans-serif !important;
+      }
+      .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+        background: #18181b !important;
+        color: #fff !important;
+        border: 1px solid #27272a;
+      }
+      .leaflet-bar a {
+        background-color: #18181b !important;
+        color: #fff !important;
+        border-bottom: 1px solid #27272a !important;
+      }
+      .leaflet-bar a:hover {
+        background-color: #27272a !important;
+      }
     </style>
   <script type="importmap">
 {
@@ -83,7 +103,8 @@
     "react/": "https://aistudiocdn.com/react@^19.2.1/",
     "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.32.0",
-    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.25"
+    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.25",
+    "leaflet": "https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js"
   }
 }
 </script>
