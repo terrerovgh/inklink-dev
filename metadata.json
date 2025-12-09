@@ -1,0 +1,7 @@
+{
+  "name": "InkLink",
+  "description": "AI-native tattoo marketplace connecting clients with artists through generative discovery.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
