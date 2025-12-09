@@ -18,6 +18,8 @@ interface DashboardProps {
   user: User;
   savedTattooIds: string[];
   onViewChange: (view: string) => void;
+  initialTab?: 'overview' | 'appointments' | 'messages' | 'portfolio' | 'marketing' | 'settings';
+  initialContactId?: string | null;
 }
 
 // Mock Chat Data
@@ -34,13 +36,13 @@ const MOCK_MESSAGES: ChatMessage[] = [
   { id: 'm5', senderId: 'u1', text: 'Does 2pm work for you?', timestamp: 1629823622222, isMe: false },
 ];
 
-export const Dashboard: React.FC<DashboardProps> = ({ user, savedTattooIds, onViewChange }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ user, savedTattooIds, onViewChange, initialTab = 'overview', initialContactId = null }) => {
     const { logout } = useAuth();
-    const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'messages' | 'portfolio' | 'marketing' | 'settings'>('overview');
+    const [activeTab, setActiveTab] = useState(initialTab);
     const [showPromoGen, setShowPromoGen] = useState(false);
     
     // Chat State
-    const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+    const [selectedContactId, setSelectedContactId] = useState<string | null>(initialContactId);
     const [chatInput, setChatInput] = useState('');
     const [messages, setMessages] = useState(MOCK_MESSAGES);
     const [smartReplies, setSmartReplies] = useState<string[]>([]);
@@ -57,6 +59,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, savedTattooIds, onVi
     const [newPostDesc, setNewPostDesc] = useState('');
 
     const isArtist = user.role === UserRole.ARTIST;
+
+    useEffect(() => {
+        if (initialContactId) {
+            // In a real app, we would fetch the conversation here
+            // For now, if the contact doesn't exist in mock, we'd add it (simulated)
+            const exists = MOCK_CONTACTS.find(c => c.id === initialContactId);
+            if (!exists) {
+                // Assuming we would add the user to contacts here if not present
+                // For this demo, we'll just rely on existing or handle loosely
+            }
+            setSelectedContactId(initialContactId);
+        }
+    }, [initialContactId]);
 
     const savedTattoos = useMemo(() => {
         return MOCK_TATTOOS.filter(t => savedTattooIds.includes(t.id));
@@ -342,8 +357,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, savedTattooIds, onVi
                                   <div className="p-4 border-b border-white/10 flex items-center justify-between">
                                      <div className="flex items-center gap-3">
                                         <button onClick={() => setSelectedContactId(null)} className="md:hidden text-zinc-400 hover:text-white"><MoveRight className="w-5 h-5 rotate-180" /></button>
-                                        <img src={MOCK_CONTACTS.find(c => c.id === selectedContactId)?.avatar} className="w-8 h-8 rounded-full" />
-                                        <span className="font-bold text-white">{MOCK_CONTACTS.find(c => c.id === selectedContactId)?.name}</span>
+                                        <img src={MOCK_CONTACTS.find(c => c.id === selectedContactId)?.avatar || 'https://via.placeholder.com/40'} className="w-8 h-8 rounded-full" />
+                                        <span className="font-bold text-white">{MOCK_CONTACTS.find(c => c.id === selectedContactId)?.name || 'Unknown'}</span>
                                      </div>
                                      {isArtist && (
                                          <button onClick={() => setShowProjectPanel(!showProjectPanel)} className="p-2 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white">

@@ -114,6 +114,11 @@ export interface MarketRequest {
   createdAt: string;
   referenceImages?: string[];
   bids?: number;
+  // New Visual Fields
+  generatedSketch?: string;
+  userPhoto?: string;
+  bodyPart?: string;
+  estimatedHours?: number;
 }
 
 export interface Appointment {

@@ -9,6 +9,7 @@ import { LoginView } from './components/LoginView';
 import { Dashboard } from './components/Dashboard';
 import GuestFeed from './components/GuestFeed';
 import TattooStudio from './components/TattooStudio';
+import MarketplaceDetail from './components/MarketplaceDetail';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, Sparkles, MapPin, 
@@ -36,8 +37,12 @@ function App() {
   const { user, isLoading, updateUser } = useAuth();
   const [view, setView] = useState('home');
   const [selectedArtistId, setSelectedArtistId] = useState<string | null>(null);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [savedTattooIds, setSavedTattooIds] = useState<string[]>([]);
   
+  // Dashboard State Control for Deep Linking
+  const [dashboardState, setDashboardState] = useState<{tab?: any, contactId?: string}>({});
+
   // Studio Wizard State
   const [showStudio, setShowStudio] = useState(false);
   const [marketRequests, setMarketRequests] = useState<MarketRequest[]>(MOCK_REQUESTS);
@@ -61,6 +66,24 @@ function App() {
   const handleArtistClick = (id: string) => {
     setSelectedArtistId(id);
     setView('profile');
+  };
+  
+  const handleMarketItemClick = (id: string) => {
+    setSelectedRequestId(id);
+    setView('market-detail');
+  };
+
+  const handleBidSubmit = (request: MarketRequest, amount: number, message: string) => {
+      // 1. Simulate creating a conversation or navigating to existing one
+      // In a real app, this would hit an API.
+      // We will tell the Dashboard to open the 'messages' tab and select the contact ID equal to the client's ID.
+      
+      setDashboardState({
+          tab: 'messages',
+          contactId: request.clientId
+      });
+      
+      setView('dashboard');
   };
 
   const toggleSaveTattoo = (id: string) => {
@@ -107,12 +130,15 @@ function App() {
         status: 'open',
         createdAt: 'Just now',
         bids: 0,
-        referenceImages: projectData.references
+        referenceImages: projectData.references,
+        generatedSketch: projectData.generatedSketch,
+        userPhoto: projectData.userPhoto,
+        bodyPart: projectData.bodyZone,
+        estimatedHours: projectData.report?.estimatedHours
     };
 
     setMarketRequests(prev => [newRequest, ...prev]);
     setView('market');
-    // In a real app, we would save the sketch URL and technical notes too
   };
 
   if (isLoading) {
@@ -153,7 +179,17 @@ function App() {
              <Marketplace 
                 requests={marketRequests} 
                 onLaunchStudio={() => setShowStudio(true)}
+                onItemClick={handleMarketItemClick}
              />
+          )}
+
+          {view === 'market-detail' && selectedRequestId && (
+              <MarketplaceDetail 
+                 key="market-detail"
+                 request={marketRequests.find(r => r.id === selectedRequestId)!}
+                 onBack={() => setView('market')}
+                 onBidSubmit={handleBidSubmit}
+              />
           )}
 
           {view === 'dashboard' && user && (
@@ -162,6 +198,8 @@ function App() {
               user={user}
               savedTattooIds={savedTattooIds} 
               onViewChange={setView}
+              initialTab={dashboardState.tab || 'overview'}
+              initialContactId={dashboardState.contactId}
             />
           )}
 
@@ -191,7 +229,7 @@ function App() {
 
 // --- SUB-VIEWS ---
 
-const Marketplace: React.FC<{ requests: MarketRequest[], onLaunchStudio: () => void }> = ({ requests, onLaunchStudio }) => {
+const Marketplace: React.FC<{ requests: MarketRequest[], onLaunchStudio: () => void, onItemClick: (id: string) => void }> = ({ requests, onLaunchStudio, onItemClick }) => {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl mx-auto">
       <div className="flex items-end justify-between mb-8">
@@ -209,7 +247,7 @@ const Marketplace: React.FC<{ requests: MarketRequest[], onLaunchStudio: () => v
 
       <div className="grid gap-4">
         {requests.map((req) => (
-          <SpotlightCard key={req.id} className="p-6 bg-surface/30">
+          <SpotlightCard key={req.id} className="p-6 bg-surface/30 cursor-pointer" onClick={() => onItemClick(req.id)}>
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
                  {req.clientAvatar ? (
@@ -234,15 +272,13 @@ const Marketplace: React.FC<{ requests: MarketRequest[], onLaunchStudio: () => v
               </span>
             </div>
             
-            <p className="text-zinc-400 text-sm leading-relaxed mb-6 max-w-2xl">
+            <p className="text-zinc-400 text-sm leading-relaxed mb-6 max-w-2xl line-clamp-2">
               {req.description}
             </p>
 
-            {req.referenceImages && req.referenceImages.length > 0 && (
-                <div className="flex gap-2 mb-6">
-                    {req.referenceImages.map((img, i) => (
-                        <img key={i} src={img} className="w-16 h-16 rounded-lg object-cover border border-white/5" />
-                    ))}
+            {req.generatedSketch && (
+                <div className="mb-6 h-24 w-24 bg-white p-2 rounded-lg rotate-2 shadow-lg float-right -mt-16 border border-zinc-200">
+                    <img src={req.generatedSketch} className="w-full h-full object-contain mix-blend-multiply" />
                 </div>
             )}
 

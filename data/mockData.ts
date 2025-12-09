@@ -91,13 +91,31 @@ export const MOCK_TATTOOS: Tattoo[] = [
 ];
 
 export const MOCK_REQUESTS: MarketRequest[] = [
-  { id: 'r1', clientId: 'c1', clientName: 'Elena G.', title: 'Zia Symbol with Yucca', description: 'Looking for a minimalist Zia symbol incorporating yucca flowers. Placing it on my ankle. Approx 3 inches.', budgetRange: '$150 - $250', location: 'Nob Hill', style: 'Fine Line', status: 'open', createdAt: '2h ago', bids: 3 },
-  { id: 'r2', clientId: 'c2', clientName: 'Marcus T.', title: 'Breaking Bad Heisenberg Portrait', description: 'Realistic black and grey portrait for my calf. Want high detail.', budgetRange: '$800 - $1200', location: 'Westside', style: 'Realism', status: 'open', createdAt: '5h ago', bids: 12 },
-  { id: 'r3', clientId: 'c3', clientName: 'Sarah M.', title: 'Balloon Fiesta Scene', description: 'Colorful hot air balloons over the Sandias. Watercolor style.', budgetRange: '$400 - $600', location: 'Northeast Heights', style: 'Watercolor', status: 'open', createdAt: '1d ago', bids: 5 },
+  { 
+    id: 'r1', clientId: 'c1', clientName: 'Elena G.', clientAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100',
+    title: 'Zia Symbol with Yucca', description: 'Looking for a minimalist Zia symbol incorporating yucca flowers. Placing it on my ankle. Approx 3 inches.', 
+    budgetRange: '$150 - $250', location: 'Nob Hill', style: 'Fine Line', status: 'open', createdAt: '2h ago', bids: 3,
+    bodyPart: 'Leg Lower', generatedSketch: 'https://images.unsplash.com/photo-1621112904887-419379ce6824?auto=format&fit=crop&q=80&w=300',
+    estimatedHours: 2,
+    referenceImages: ['https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=300']
+  },
+  { 
+    id: 'r2', clientId: 'c2', clientName: 'Marcus T.', clientAvatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&q=80&w=100',
+    title: 'Breaking Bad Heisenberg Portrait', description: 'Realistic black and grey portrait for my calf. Want high detail.', 
+    budgetRange: '$800 - $1200', location: 'Westside', style: 'Realism', status: 'open', createdAt: '5h ago', bids: 12,
+    bodyPart: 'Leg Upper',
+    estimatedHours: 6
+  },
+  { 
+    id: 'r3', clientId: 'c3', clientName: 'Sarah M.', clientAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100',
+    title: 'Balloon Fiesta Scene', description: 'Colorful hot air balloons over the Sandias. Watercolor style.', 
+    budgetRange: '$400 - $600', location: 'Northeast Heights', style: 'Watercolor', status: 'open', createdAt: '1d ago', bids: 5,
+    bodyPart: 'Back', generatedSketch: 'https://images.unsplash.com/photo-1525439722822-29729a674172?auto=format&fit=crop&q=80&w=300',
+    estimatedHours: 4
+  },
 ];
 
 export const MOCK_APPOINTMENTS: Appointment[] = [
   { id: 'ap1', clientName: 'Elena G.', artistName: 'Archetype Tattoo', date: 'Oct 24', time: '14:00', status: 'confirmed', type: 'Session', depositPaid: true, priceEstimate: 450 },
   { id: 'ap2', clientName: 'Marcus T.', artistName: 'Por Vida Tattoo', date: 'Oct 25', time: '10:00', status: 'pending', type: 'Consultation', depositPaid: false },
 ];
-    
