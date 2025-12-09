@@ -1,3 +1,4 @@
+
 export enum UserRole {
   CLIENT = 'client',
   ARTIST = 'artist'
@@ -35,6 +36,8 @@ export interface Tattoo {
   price?: number;
   likes: number;
   tags?: string[];
+  styleTags?: string[];
+  isFlash?: boolean;
 }
 
 export interface MarketRequest {

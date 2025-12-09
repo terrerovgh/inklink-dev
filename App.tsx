@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useMemo } from 'react';
 import Navigation from './components/Navigation';
 import GridBackground from './components/GridBackground';
 import SpotlightCard from './components/SpotlightCard';
@@ -7,19 +8,174 @@ import {
   Search, Sparkles, MapPin, DollarSign, Clock, 
   ChevronRight, Heart, Share2, Filter, MoreHorizontal,
   Calendar, CheckCircle, XCircle, Send, MessageSquare,
-  Wand2, Loader2, Info
+  Wand2, Loader2, Info, Zap, Bookmark
 } from 'lucide-react';
 import { analyzeRequest, generateTattooDesign, generateArtistBio } from './services/geminiService';
 import { Tattoo, MarketRequest, Appointment, Profile, UserRole } from './types';
 
 // --- MOCK DATA ---
 const MOCK_TATTOOS: Tattoo[] = [
-  { id: '1', artistId: 'a1', artistName: 'Kai Verno', artistAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100', imageUrl: 'https://images.unsplash.com/photo-1560707303-4e9803d165df?q=80&w=800&auto=format&fit=crop', style: 'Cyberpunk', bodyPart: 'Forearm', description: 'Glitch art fox', likes: 243, tags: ['fox', 'animal', 'neon', 'glitch'] },
-  { id: '2', artistId: 'a2', artistName: 'Elena Rose', artistAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100', imageUrl: 'https://images.unsplash.com/photo-1611501275019-9b5cda994e8d?q=80&w=800&auto=format&fit=crop', style: 'Neo-Traditional', bodyPart: 'Chest', description: 'Sacred heart dagger', likes: 892, tags: ['heart', 'dagger', 'traditional', 'red'] },
-  { id: '3', artistId: 'a3', artistName: 'Sato Ink', artistAvatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=100', imageUrl: 'https://images.unsplash.com/photo-1562962230-16e4623d36e6?q=80&w=800&auto=format&fit=crop', style: 'Realism', bodyPart: 'Thigh', description: 'Vintage floral composition', likes: 561, tags: ['flower', 'rose', 'vintage', 'botanical'] },
-  { id: '4', artistId: 'a1', artistName: 'Kai Verno', artistAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100', imageUrl: 'https://images.unsplash.com/photo-1598371839696-5c5bb00bdc28?q=80&w=800&auto=format&fit=crop', style: 'Abstract', bodyPart: 'Shoulder', description: 'Fluid smoke lines', likes: 120, tags: ['smoke', 'abstract', 'lines'] },
-  { id: '5', artistId: 'a4', artistName: 'Mikey D', artistAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100', imageUrl: 'https://images.unsplash.com/photo-1621112904887-419379ce6824?q=80&w=800&auto=format&fit=crop', style: 'Blackwork', bodyPart: 'Back', description: 'Geometric spine alignment', likes: 884, tags: ['geometry', 'spine', 'blackwork', 'pattern'] },
-  { id: '6', artistId: 'a5', artistName: 'Sarah Ink', artistAvatar: 'https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=100', imageUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb39279c23?q=80&w=800&auto=format&fit=crop', style: 'Watercolor', bodyPart: 'Arm', description: 'Splatter Wolf', likes: 432, tags: ['wolf', 'watercolor', 'color', 'animal'] },
+  { 
+    id: '1', artistId: 'a1', artistName: 'Kai Verno', artistAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100', 
+    imageUrl: 'https://images.unsplash.com/photo-1560707303-4e9803d165df?q=80&w=800&auto=format&fit=crop', 
+    style: 'Cyberpunk', bodyPart: 'Forearm', description: 'Glitch art fox', likes: 243, tags: ['fox', 'animal', 'neon', 'glitch'],
+    styleTags: ['Cyberpunk', 'Glitch', 'Neo-Futurism']
+  },
+  { 
+    id: '2', artistId: 'a2', artistName: 'Elena Rose', artistAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100', 
+    imageUrl: 'https://images.unsplash.com/photo-1611501275019-9b5cda994e8d?q=80&w=800&auto=format&fit=crop', 
+    style: 'Neo-Traditional', bodyPart: 'Chest', description: 'Sacred heart dagger', likes: 892, tags: ['heart', 'dagger', 'traditional', 'red'],
+    styleTags: ['Neo-Traditional', 'Old School', 'Color'],
+    isFlash: true, price: 350
+  },
+  { 
+    id: '3', artistId: 'a3', artistName: 'Sato Ink', artistAvatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=100', 
+    imageUrl: 'https://images.unsplash.com/photo-1562962230-16e4623d36e6?q=80&w=800&auto=format&fit=crop', 
+    style: 'Realism', bodyPart: 'Thigh', description: 'Vintage floral composition', likes: 561, tags: ['flower', 'rose', 'vintage', 'botanical'],
+    styleTags: ['Realism', 'Black and Grey', 'Botanical']
+  },
+  { 
+    id: '4', artistId: 'a1', artistName: 'Kai Verno', artistAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100', 
+    imageUrl: 'https://images.unsplash.com/photo-1598371839696-5c5bb00bdc28?q=80&w=800&auto=format&fit=crop', 
+    style: 'Abstract', bodyPart: 'Shoulder', description: 'Fluid smoke lines', likes: 120, tags: ['smoke', 'abstract', 'lines'],
+    styleTags: ['Abstract', 'Flow', 'Minimalist'],
+    isFlash: true, price: 200
+  },
+  { 
+    id: '5', artistId: 'a4', artistName: 'Mikey D', artistAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100', 
+    imageUrl: 'https://images.unsplash.com/photo-1621112904887-419379ce6824?q=80&w=800&auto=format&fit=crop', 
+    style: 'Blackwork', bodyPart: 'Back', description: 'Geometric spine alignment', likes: 884, tags: ['geometry', 'spine', 'blackwork', 'pattern'],
+    styleTags: ['Blackwork', 'Geometric', 'Ornamental']
+  },
+  { 
+    id: '6', artistId: 'a5', artistName: 'Sarah Ink', artistAvatar: 'https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=100', 
+    imageUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb39279c23?q=80&w=800&auto=format&fit=crop', 
+    style: 'Watercolor', bodyPart: 'Arm', description: 'Splatter Wolf', likes: 432, tags: ['wolf', 'watercolor', 'color', 'animal'],
+    styleTags: ['Watercolor', 'Abstract', 'Color']
+  },
+  { 
+    id: '7', artistId: 'a6', artistName: 'Leo Geometric', artistAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100', 
+    imageUrl: 'https://images.unsplash.com/photo-1550537687-c9135742ca59?q=80&w=800&auto=format&fit=crop', 
+    style: 'Geometric', bodyPart: 'Forearm', description: 'Sacred Geometry Mandala', likes: 315, tags: ['mandala', 'sacred geometry', 'dotwork'],
+    styleTags: ['Geometric', 'Dotwork', 'Blackwork'],
+    isFlash: true, price: 400
+  },
+  { 
+    id: '8', artistId: 'a7', artistName: 'Mia Sketch', artistAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100', 
+    imageUrl: 'https://images.unsplash.com/photo-1590246294305-9e342390317e?q=80&w=800&auto=format&fit=crop', 
+    style: 'Illustrative', bodyPart: 'Calf', description: 'Whimsical Forest Mushroom', likes: 198, tags: ['mushroom', 'nature', 'fairy'],
+    styleTags: ['Illustrative', 'Sketch', 'Fantasy'],
+    isFlash: true, price: 180
+  },
+  { 
+    id: '9', artistId: 'a8', artistName: 'Kenji Tato', artistAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100', 
+    imageUrl: 'https://images.unsplash.com/photo-1562962230-16e4623d36e6?q=80&w=800&auto=format&fit=crop', 
+    style: 'Japanese', bodyPart: 'Sleeve', description: 'Traditional Dragon Koi', likes: 650, tags: ['dragon', 'koi', 'waves'],
+    styleTags: ['Japanese', 'Irezumi', 'Traditional']
+  },
+  { 
+    id: '10', artistId: 'a9', artistName: 'Luna Color', artistAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100', 
+    imageUrl: 'https://images.unsplash.com/photo-1525439722822-29729a674172?q=80&w=800&auto=format&fit=crop', 
+    style: 'Watercolor', bodyPart: 'Back', description: 'Nebula Space Scene', likes: 520, tags: ['space', 'galaxy', 'stars'],
+    styleTags: ['Watercolor', 'Cosmic', 'Abstract']
+  },
+  { 
+    id: '11', artistId: 'a10', artistName: 'Koa Tribal', artistAvatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100', 
+    imageUrl: 'https://images.unsplash.com/photo-1568515045052-f9a854d70bfd?q=80&w=800&auto=format&fit=crop', 
+    style: 'Tribal', bodyPart: 'Shoulder', description: 'Polynesian Armor', likes: 410, tags: ['tribal', 'polynesian', 'maori'],
+    styleTags: ['Tribal', 'Blackwork', 'Cultural'],
+    isFlash: true, price: 500
+  },
+  {
+    id: '12', artistId: 'a1', artistName: 'Kai Verno', artistAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
+    imageUrl: 'https://images.unsplash.com/photo-1598371839696-5c5bb00bdc28?q=80&w=800&auto=format&fit=crop',
+    style: 'Cyberpunk', bodyPart: 'Leg', description: 'Circuitry Pattern', likes: 150, tags: ['circuit', 'tech', 'pattern'],
+    styleTags: ['Cyberpunk', 'Blackwork'],
+    isFlash: true, price: 250
+  }
+];
+
+const MOCK_ARTISTS: Profile[] = [
+  {
+    id: 'a1', role: UserRole.ARTIST, name: 'Kai Verno', handle: '@kai.verno',
+    bio: "Forging future-primitive aesthetics in the heart of Brooklyn. Kai blends biomechanical textures with cyberpunk themes, creating high-contrast blackwork that transforms skin into armor.",
+    location: 'Brooklyn, NY', styleTags: ['Cyberpunk', 'Biomechanical', 'Blackwork'],
+    pricing: { min: 250, hourly: 180 }, verified: true, rating: 4.9, reviewCount: 124,
+    avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
+    coverUrl: 'https://images.unsplash.com/photo-1598371839696-5c5bb00bdc28?q=80&w=2000&auto=format&fit=crop'
+  },
+  {
+    id: 'a2', role: UserRole.ARTIST, name: 'Elena Rose', handle: '@elena.rose',
+    bio: "Portland-based artist specializing in bold, vibrant Neo-Traditional designs. Elena breathes new life into classic motifs with saturated color palettes and clean, timeless linework.",
+    location: 'Portland, OR', styleTags: ['Neo-Traditional', 'Old School', 'Color'],
+    pricing: { min: 150, hourly: 130 }, verified: true, rating: 4.8, reviewCount: 89,
+    avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400',
+    coverUrl: 'https://images.unsplash.com/photo-1611501275019-9b5cda994e8d?q=80&w=2000&auto=format&fit=crop'
+  },
+  {
+    id: 'a3', role: UserRole.ARTIST, name: 'Sato Ink', handle: '@sato.ink',
+    bio: "Mastering the delicate balance of light and shadow in Tokyo. Sato specializes in hyper-realistic botanical black and grey work, capturing the fleeting beauty of nature.",
+    location: 'Tokyo, Japan', styleTags: ['Realism', 'Black and Grey', 'Botanical'],
+    pricing: { min: 300, hourly: 200 }, verified: true, rating: 5.0, reviewCount: 210,
+    avatarUrl: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=400',
+    coverUrl: 'https://images.unsplash.com/photo-1562962230-16e4623d36e6?q=80&w=2000&auto=format&fit=crop'
+  },
+  {
+    id: 'a4', role: UserRole.ARTIST, name: 'Mikey D', handle: '@mikey.d',
+    bio: "London's architect of the skin. Mikey constructs intricate geometric patterns and ornamental blackwork, focusing on precision, symmetry, and flow with the body's natural lines.",
+    location: 'London, UK', styleTags: ['Blackwork', 'Geometric', 'Ornamental'],
+    pricing: { min: 200, hourly: 150 }, verified: false, rating: 4.7, reviewCount: 45,
+    avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400',
+    coverUrl: 'https://images.unsplash.com/photo-1621112904887-419379ce6824?q=80&w=2000&auto=format&fit=crop'
+  },
+  {
+    id: 'a5', role: UserRole.ARTIST, name: 'Sarah Ink', handle: '@sarah.ink',
+    bio: "Austin-based artist turning skin into canvas. Sarah's watercolor style blends fluid abstract splashes with vibrant color, creating soft, painterly pieces full of movement.",
+    location: 'Austin, TX', styleTags: ['Watercolor', 'Abstract', 'Color'],
+    pricing: { min: 180, hourly: 140 }, verified: true, rating: 4.9, reviewCount: 156,
+    avatarUrl: 'https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=400',
+    coverUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb39279c23?q=80&w=2000&auto=format&fit=crop'
+  },
+  {
+    id: 'a6', role: UserRole.ARTIST, name: 'Leo Geometric', handle: '@leo.geo',
+    bio: "Berlin's dotwork specialist. Leo creates hypnotic geometric mandalas and sacred geometry patterns, utilizing precise pointillism to build depth and texture.",
+    location: 'Berlin, DE', styleTags: ['Geometric', 'Dotwork', 'Blackwork'],
+    pricing: { min: 220, hourly: 160 }, verified: true, rating: 4.8, reviewCount: 92,
+    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400',
+    coverUrl: 'https://images.unsplash.com/photo-1550537687-c9135742ca59?q=80&w=2000&auto=format&fit=crop'
+  },
+  {
+    id: 'a7', role: UserRole.ARTIST, name: 'Mia Sketch', handle: '@mia.draws',
+    bio: "Illustrating dreams in Seattle. Mia specializes in whimsical, sketch-style tattoos, bringing fantasy creatures and storybook elements to life with a raw, hand-drawn aesthetic.",
+    location: 'Seattle, WA', styleTags: ['Illustrative', 'Sketch', 'Fantasy'],
+    pricing: { min: 160, hourly: 140 }, verified: false, rating: 4.6, reviewCount: 38,
+    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400',
+    coverUrl: 'https://images.unsplash.com/photo-1590246294305-9e342390317e?q=80&w=2000&auto=format&fit=crop'
+  },
+  {
+    id: 'a8', role: UserRole.ARTIST, name: 'Kenji Tato', handle: '@kenji.irezumi',
+    bio: "Preserving tradition in Kyoto. Kenji honors the ancient art of Irezumi, crafting powerful Japanese bodysuits featuring dragons, koi, and waves with authentic flow and history.",
+    location: 'Kyoto, Japan', styleTags: ['Japanese', 'Irezumi', 'Traditional'],
+    pricing: { min: 400, hourly: 250 }, verified: true, rating: 5.0, reviewCount: 310,
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
+    coverUrl: 'https://images.unsplash.com/photo-1562962230-16e4623d36e6?q=80&w=2000&auto=format&fit=crop'
+  },
+  {
+    id: 'a9', role: UserRole.ARTIST, name: 'Luna Color', handle: '@luna.space',
+    bio: "Capturing the cosmos in Miami. Luna specializes in vibrant watercolor galaxy scenes, blending nebulas and stars into abstract, colorful compositions that defy gravity.",
+    location: 'Miami, FL', styleTags: ['Watercolor', 'Cosmic', 'Abstract'],
+    pricing: { min: 180, hourly: 150 }, verified: true, rating: 4.8, reviewCount: 112,
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
+    coverUrl: 'https://images.unsplash.com/photo-1525439722822-29729a674172?q=80&w=2000&auto=format&fit=crop'
+  },
+  {
+    id: 'a10', role: UserRole.ARTIST, name: 'Koa Tribal', handle: '@koa.ink',
+    bio: "Honoring ancestry in Honolulu. Koa specializes in traditional Polynesian and Maori tribal markings, hand-crafting meaningful patterns that tell personal and cultural stories.",
+    location: 'Honolulu, HI', styleTags: ['Tribal', 'Blackwork', 'Cultural'],
+    pricing: { min: 250, hourly: 180 }, verified: true, rating: 4.9, reviewCount: 180,
+    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400',
+    coverUrl: 'https://images.unsplash.com/photo-1568515045052-f9a854d70bfd?q=80&w=2000&auto=format&fit=crop'
+  }
 ];
 
 const MOCK_REQUESTS: MarketRequest[] = [
@@ -32,24 +188,32 @@ const MOCK_APPOINTMENTS: Appointment[] = [
   { id: 'ap2', clientName: 'Mike R.', artistName: 'Kai Verno', date: 'Oct 25', time: '10:00', status: 'pending', type: 'Consultation', depositPaid: false },
 ];
 
-const ARTIST_PROFILE_DATA: Profile = {
-  id: 'a1', role: UserRole.ARTIST, name: 'Kai Verno', handle: '@kai.verno', 
-  bio: '', // Will be generated
-  location: 'Brooklyn, NY', styleTags: ['Cyberpunk', 'Biomechanical', 'Blackwork'],
-  pricing: { min: 250, hourly: 180 }, verified: true, rating: 4.9, reviewCount: 124,
-  avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
-  coverUrl: 'https://images.unsplash.com/photo-1598371839696-5c5bb00bdc28?q=80&w=2000&auto=format&fit=crop'
-};
-
 // --- APP COMPONENT ---
 
 export default function App() {
   const [view, setView] = useState('home');
   const [selectedArtistId, setSelectedArtistId] = useState<string | null>(null);
+  const [savedTattooIds, setSavedTattooIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('inklink_saved_tattoos');
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
 
   const handleArtistClick = (id: string) => {
     setSelectedArtistId(id);
     setView('profile');
+  };
+
+  const toggleSaveTattoo = (id: string) => {
+    setSavedTattooIds(prev => {
+      const newIds = prev.includes(id) 
+        ? prev.filter(tid => tid !== id) 
+        : [...prev, id];
+      localStorage.setItem('inklink_saved_tattoos', JSON.stringify(newIds));
+      return newIds;
+    });
   };
 
   return (
@@ -60,10 +224,22 @@ export default function App() {
       
       <main className="relative pt-20 pb-24 px-4 md:px-8 max-w-7xl mx-auto min-h-screen">
         <AnimatePresence mode="wait">
-          {view === 'home' && <DiscoveryFeed key="home" onArtistClick={handleArtistClick} />}
+          {view === 'home' && (
+            <DiscoveryFeed 
+              key="home" 
+              onArtistClick={handleArtistClick} 
+              savedTattooIds={savedTattooIds}
+              onToggleSave={toggleSaveTattoo}
+            />
+          )}
           {view === 'market' && <Marketplace key="market" />}
           {view === 'canvas' && <CanvasStudio key="canvas" />}
-          {view === 'dashboard' && <Dashboard key="dashboard" />}
+          {view === 'dashboard' && (
+            <Dashboard 
+              key="dashboard" 
+              savedTattooIds={savedTattooIds} 
+            />
+          )}
           {view === 'profile' && <ArtistProfile key="profile" artistId={selectedArtistId || 'a1'} onBack={() => setView('home')} />}
         </AnimatePresence>
       </main>
@@ -73,7 +249,11 @@ export default function App() {
 
 // --- SUB-VIEWS ---
 
-const DiscoveryFeed: React.FC<{ onArtistClick: (id: string) => void }> = ({ onArtistClick }) => {
+const DiscoveryFeed: React.FC<{ 
+  onArtistClick: (id: string) => void; 
+  savedTattooIds: string[];
+  onToggleSave: (id: string) => void;
+}> = ({ onArtistClick, savedTattooIds, onToggleSave }) => {
   const [search, setSearch] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<{message: string, tags: string[]} | null>(null);
@@ -103,7 +283,8 @@ const DiscoveryFeed: React.FC<{ onArtistClick: (id: string) => void }> = ({ onAr
       // Very basic fuzzy keyword matching
       const keywordMatch = result.filters?.keywords.some(k => 
         t.description.toLowerCase().includes(k.toLowerCase()) || 
-        t.tags?.some(tag => tag.toLowerCase().includes(k.toLowerCase()))
+        t.tags?.some(tag => tag.toLowerCase().includes(k.toLowerCase())) ||
+        t.styleTags?.some(stag => stag.toLowerCase().includes(k.toLowerCase()))
       ) ?? true;
       
       return styleMatch && (bodyMatch || keywordMatch);
@@ -154,29 +335,45 @@ const DiscoveryFeed: React.FC<{ onArtistClick: (id: string) => void }> = ({ onAr
 
       {/* Masonry Grid */}
       <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6 pt-6">
-        {activeTattoos.map((tattoo) => (
-          <SpotlightCard key={tattoo.id} className="break-inside-avoid group bg-surface">
-            <div className="relative">
-                <img src={tattoo.imageUrl} alt={tattoo.description} className="w-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
-                    <h3 className="text-lg font-medium font-display leading-none mb-1 text-white">{tattoo.description}</h3>
-                    <p className="text-sm text-zinc-400 mb-4">{tattoo.style} • {tattoo.bodyPart}</p>
-                    
-                    <div className="flex items-center justify-between">
-                        <button onClick={() => onArtistClick(tattoo.artistId)} className="flex items-center gap-2 hover:bg-white/10 rounded-full pr-3 py-1 transition-colors">
-                        <img src={tattoo.artistAvatar} className="w-6 h-6 rounded-full ring-1 ring-white/20" />
-                        <span className="text-xs font-medium text-zinc-300">@{tattoo.artistName}</span>
-                        </button>
-                        <div className="flex gap-2">
-                        <button className="p-2 bg-white/10 backdrop-blur-md rounded-full hover:bg-white text-white hover:text-black transition-all">
-                            <Heart className="w-4 h-4" />
-                        </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-          </SpotlightCard>
-        ))}
+        {activeTattoos.map((tattoo) => {
+          const isSaved = savedTattooIds.includes(tattoo.id);
+          return (
+            <SpotlightCard key={tattoo.id} className="break-inside-avoid group bg-surface">
+              <div className="relative">
+                  <img src={tattoo.imageUrl} alt={tattoo.description} className="w-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
+                      <h3 className="text-lg font-medium font-display leading-none mb-1 text-white">{tattoo.description}</h3>
+                      <p className="text-sm text-zinc-400 mb-2">{tattoo.style} • {tattoo.bodyPart}</p>
+                      
+                      {tattoo.styleTags && (
+                          <div className="flex flex-wrap gap-1 mb-4">
+                              {tattoo.styleTags.slice(0, 3).map(tag => (
+                                  <span key={tag} className="text-[10px] bg-white/10 text-zinc-300 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                                      {tag}
+                                  </span>
+                              ))}
+                          </div>
+                      )}
+                      
+                      <div className="flex items-center justify-between">
+                          <button onClick={() => onArtistClick(tattoo.artistId)} className="flex items-center gap-2 hover:bg-white/10 rounded-full pr-3 py-1 transition-colors">
+                            <img src={tattoo.artistAvatar} className="w-6 h-6 rounded-full ring-1 ring-white/20" />
+                            <span className="text-xs font-medium text-zinc-300">@{tattoo.artistName}</span>
+                          </button>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); onToggleSave(tattoo.id); }}
+                              className={`p-2 backdrop-blur-md rounded-full transition-all ${isSaved ? 'bg-pink-500 text-white' : 'bg-white/10 text-white hover:bg-white hover:text-black'}`}
+                            >
+                                <Heart className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
+                            </button>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+            </SpotlightCard>
+          );
+        })}
       </div>
     </motion.div>
   );
@@ -312,20 +509,26 @@ const Marketplace: React.FC = () => {
 
 const ArtistProfile: React.FC<{ artistId: string; onBack: () => void }> = ({ artistId, onBack }) => {
   const [bookingOpen, setBookingOpen] = useState(false);
-  const [artist, setArtist] = useState(ARTIST_PROFILE_DATA);
+  const [artist, setArtist] = useState<Profile | null>(null);
   const [isBioLoading, setIsBioLoading] = useState(true);
 
+  // Load artist data based on ID
   useEffect(() => {
-    const fetchBio = async () => {
-        setIsBioLoading(true);
-        // Simulate loading just a bit if the API is super fast, to show the effect
-        const generatedBio = await generateArtistBio(ARTIST_PROFILE_DATA.name, ARTIST_PROFILE_DATA.styleTags, ARTIST_PROFILE_DATA.location);
-        setArtist(prev => ({ ...prev, bio: generatedBio }));
-        setIsBioLoading(false);
-    };
-    
-    fetchBio();
+    const foundArtist = MOCK_ARTISTS.find(a => a.id === artistId);
+    if (foundArtist) {
+        setArtist(foundArtist);
+        // If bio is somehow missing, we could trigger generation here, but we have pre-filled them.
+        setIsBioLoading(false); 
+    }
   }, [artistId]);
+
+  const artistTattoos = useMemo(() => MOCK_TATTOOS.filter(t => t.artistId === artistId), [artistId]);
+  const flashDesigns = useMemo(() => {
+    const flash = artistTattoos.filter(t => t.isFlash);
+    return flash.length > 0 ? flash : artistTattoos.slice(0, 3);
+  }, [artistTattoos]);
+
+  if (!artist) return <div className="text-center pt-20">Artist not found</div>;
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="-mt-20">
@@ -395,16 +598,38 @@ const ArtistProfile: React.FC<{ artistId: string; onBack: () => void }> = ({ art
               </section>
 
               <section>
-                <h3 className="font-display text-xl mb-4 font-semibold text-white">Featured Flash</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                   {[1,2,3,4,5,6].map((i) => (
-                     <div key={i} className="aspect-square bg-surface rounded-xl overflow-hidden border border-white/5 group relative cursor-pointer">
-                       <img src={`https://source.unsplash.com/random/400x400?tattoo,ink&sig=${i}`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                           <span className="text-white font-medium border border-white/30 px-3 py-1 rounded-full backdrop-blur-md">View</span>
-                       </div>
-                     </div>
-                   ))}
+                <div className="flex items-center gap-2 mb-4">
+                  <h3 className="font-display text-xl font-semibold text-white">Featured Flash</h3>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 text-xs font-bold border border-amber-500/20 flex items-center gap-1">
+                    <Zap className="w-3 h-3 fill-current" /> Instant Book
+                  </span>
+                </div>
+                
+                <div className="flex overflow-x-auto gap-4 pb-4 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+                  {flashDesigns.length > 0 ? (
+                    flashDesigns.map((tattoo) => (
+                      <div key={tattoo.id} className="min-w-[200px] w-[200px] aspect-[3/4] rounded-xl overflow-hidden relative group border border-white/10 flex-shrink-0 cursor-pointer">
+                          <img src={tattoo.imageUrl} alt={tattoo.description} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
+                              <span className="text-white font-medium text-sm line-clamp-1">{tattoo.description}</span>
+                              {tattoo.price ? (
+                                <span className="text-emerald-400 text-xs font-bold mt-1">${tattoo.price}</span>
+                              ) : (
+                                <span className="text-zinc-400 text-xs mt-1">Make an offer</span>
+                              )}
+                          </div>
+                          {tattoo.isFlash && (
+                             <div className="absolute top-2 right-2 bg-black/60 backdrop-blur rounded-full p-1.5 border border-white/10">
+                               <Zap className="w-3 h-3 text-amber-400 fill-current" />
+                             </div>
+                          )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="w-full py-8 text-center text-zinc-500 border border-dashed border-white/10 rounded-xl">
+                      No flash designs available currently.
+                    </div>
+                  )}
                 </div>
               </section>
            </div>
@@ -504,9 +729,13 @@ const ArtistProfile: React.FC<{ artistId: string; onBack: () => void }> = ({ art
   );
 };
 
-const Dashboard: React.FC = () => {
+const Dashboard: React.FC<{ savedTattooIds: string[] }> = ({ savedTattooIds }) => {
     const [role, setRole] = useState<'client' | 'artist'>('artist');
-    const [activeTab, setActiveTab] = useState<'appointments' | 'messages'>('appointments');
+    const [activeTab, setActiveTab] = useState<'appointments' | 'messages' | 'saved'>('appointments');
+
+    const savedTattoos = useMemo(() => {
+        return MOCK_TATTOOS.filter(t => savedTattooIds.includes(t.id));
+    }, [savedTattooIds]);
 
     return (
         <motion.div initial={{opacity: 0}} animate={{opacity: 1}} className="max-w-5xl mx-auto pt-4">
@@ -529,6 +758,11 @@ const Dashboard: React.FC = () => {
                     <button onClick={() => setActiveTab('messages')} className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 transition-all ${activeTab === 'messages' ? 'bg-surface border border-white/10 text-white' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}>
                         <MessageSquare className="w-5 h-5" />
                         <span className="font-medium">Messages</span>
+                    </button>
+                    <button onClick={() => setActiveTab('saved')} className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 transition-all ${activeTab === 'saved' ? 'bg-surface border border-white/10 text-white' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}>
+                        <Bookmark className="w-5 h-5" />
+                        <span className="font-medium">Saved Tattoos</span>
+                        <span className="ml-auto bg-zinc-800 text-zinc-400 text-xs font-bold px-2 py-0.5 rounded-full">{savedTattooIds.length}</span>
                     </button>
                     <button className="w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 hover:bg-white/5 transition-colors text-zinc-400 hover:text-white">
                         <DollarSign className="w-5 h-5" />
@@ -587,6 +821,34 @@ const Dashboard: React.FC = () => {
                                     <Send className="w-3 h-3" />
                                 </button>
                             </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'saved' && (
+                        <div className="space-y-4">
+                            <h3 className="text-lg font-medium mb-4 text-white">Your Inspiration</h3>
+                            {savedTattoos.length === 0 ? (
+                                <div className="text-center py-12 text-zinc-500">
+                                    <Bookmark className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                    <p>No saved tattoos yet. Go explore!</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-4">
+                                    {savedTattoos.map(t => (
+                                        <div key={t.id} className="relative aspect-square rounded-xl overflow-hidden border border-white/5 group">
+                                            <img src={t.imageUrl} className="w-full h-full object-cover" />
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                <button className="bg-white text-black text-xs font-bold px-3 py-1.5 rounded-full hover:scale-105 transition-transform">
+                                                    View
+                                                </button>
+                                            </div>
+                                            <div className="absolute bottom-2 left-2 right-2">
+                                                <p className="text-xs text-white drop-shadow-md truncate">{t.description}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
