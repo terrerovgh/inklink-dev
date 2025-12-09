@@ -21,6 +21,10 @@ export interface User {
   preferences?: UserPreferences;
   savedTattooIds: string[];
   artistProfileId?: string; // If user is also an artist
+  // Personal Details
+  dateOfBirth?: string;
+  contactNumber?: string;
+  address?: string;
 }
 
 export interface Profile {

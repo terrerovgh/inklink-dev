@@ -6,7 +6,7 @@ import {
   Settings, PenTool, Bookmark, CheckCircle, XCircle, 
   LogOut, PlusCircle, Search, Send, Loader2, Image as IconImage,
   Sparkles, Paperclip, MoveRight, FolderInput, Wand2, MoreVertical,
-  Layout, PanelRightOpen, PanelRightClose, Trash2
+  Layout, PanelRightOpen, PanelRightClose, Trash2, MapPin, Phone, User as UserIcon
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { User, UserRole, ChatMessage } from '../types';
@@ -37,7 +37,7 @@ const MOCK_MESSAGES: ChatMessage[] = [
 ];
 
 export const Dashboard: React.FC<DashboardProps> = ({ user, savedTattooIds, onViewChange, initialTab = 'overview', initialContactId = null }) => {
-    const { logout } = useAuth();
+    const { logout, updateUser } = useAuth();
     const [activeTab, setActiveTab] = useState(initialTab);
     const [showPromoGen, setShowPromoGen] = useState(false);
     
@@ -58,17 +58,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, savedTattooIds, onVi
     const [showCreatePost, setShowCreatePost] = useState(false);
     const [newPostDesc, setNewPostDesc] = useState('');
 
+    // Settings State
+    const [settingsForm, setSettingsForm] = useState({
+        name: user.name,
+        location: user.preferences?.location || '',
+        dateOfBirth: user.dateOfBirth || '',
+        contactNumber: user.contactNumber || '',
+        address: user.address || ''
+    });
+    const [saveSettingsStatus, setSaveSettingsStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+
     const isArtist = user.role === UserRole.ARTIST;
 
     useEffect(() => {
         if (initialContactId) {
-            // In a real app, we would fetch the conversation here
-            // For now, if the contact doesn't exist in mock, we'd add it (simulated)
             const exists = MOCK_CONTACTS.find(c => c.id === initialContactId);
-            if (!exists) {
-                // Assuming we would add the user to contacts here if not present
-                // For this demo, we'll just rely on existing or handle loosely
-            }
             setSelectedContactId(initialContactId);
         }
     }, [initialContactId]);
@@ -170,6 +174,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, savedTattooIds, onVi
     const handleCreatePost = () => {
         setShowCreatePost(false);
         setNewPostDesc('');
+    };
+
+    const handleSaveSettings = () => {
+        setSaveSettingsStatus('saving');
+        setTimeout(() => {
+            updateUser({
+                name: settingsForm.name,
+                dateOfBirth: settingsForm.dateOfBirth,
+                contactNumber: settingsForm.contactNumber,
+                address: settingsForm.address,
+                preferences: {
+                    ...user.preferences!,
+                    location: settingsForm.location
+                }
+            });
+            setSaveSettingsStatus('saved');
+            setTimeout(() => setSaveSettingsStatus('idle'), 2000);
+        }, 1000);
     };
 
     return (
@@ -342,7 +364,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, savedTattooIds, onVi
                                     <div className="flex-1 min-w-0">
                                       <div className="flex justify-between items-baseline mb-0.5">
                                         <h4 className="text-sm font-bold text-white truncate">{contact.name}</h4>
-                                        <span className="text-[10px] text-zinc-500">{contact.time}</span>
+                                        <span className="text-xs text-zinc-500">{contact.time}</span>
                                       </div>
                                       <p className="text-xs text-zinc-400 truncate">{contact.lastMessage}</p>
                                     </div>
@@ -613,21 +635,89 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, savedTattooIds, onVi
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-xs font-medium text-zinc-400 mb-1.5">Full Name</label>
-                                        <input defaultValue={user.name} className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-white/30" />
+                                        <div className="relative">
+                                            <UserIcon className="absolute left-3 top-2.5 w-4 h-4 text-zinc-500" />
+                                            <input 
+                                                value={settingsForm.name} 
+                                                onChange={e => setSettingsForm({...settingsForm, name: e.target.value})}
+                                                className="w-full bg-black/20 border border-white/10 rounded-lg pl-9 pr-4 py-2 text-white focus:outline-none focus:border-white/30" 
+                                            />
+                                        </div>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-zinc-400 mb-1.5">Email</label>
                                         <input defaultValue={user.email} disabled className="w-full bg-black/40 border border-white/5 rounded-lg px-4 py-2 text-zinc-500 cursor-not-allowed" />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-zinc-400 mb-1.5">Location</label>
-                                        <input defaultValue={user.preferences?.location || 'Albuquerque, NM'} className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-white/30" />
+                                        <label className="block text-xs font-medium text-zinc-400 mb-1.5">Location (City)</label>
+                                        <div className="relative">
+                                            <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-zinc-500" />
+                                            <input 
+                                                value={settingsForm.location} 
+                                                onChange={e => setSettingsForm({...settingsForm, location: e.target.value})}
+                                                className="w-full bg-black/20 border border-white/10 rounded-lg pl-9 pr-4 py-2 text-white focus:outline-none focus:border-white/30" 
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-zinc-400 mb-1.5">Date of Birth</label>
+                                        <div className="relative">
+                                            <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-zinc-500" />
+                                            <input 
+                                                type="date"
+                                                value={settingsForm.dateOfBirth} 
+                                                onChange={e => setSettingsForm({...settingsForm, dateOfBirth: e.target.value})}
+                                                className="w-full bg-black/20 border border-white/10 rounded-lg pl-9 pr-4 py-2 text-white focus:outline-none focus:border-white/30 [color-scheme:dark]" 
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-zinc-400 mb-1.5">Contact Number</label>
+                                        <div className="relative">
+                                            <Phone className="absolute left-3 top-2.5 w-4 h-4 text-zinc-500" />
+                                            <input 
+                                                value={settingsForm.contactNumber} 
+                                                onChange={e => setSettingsForm({...settingsForm, contactNumber: e.target.value})}
+                                                className="w-full bg-black/20 border border-white/10 rounded-lg pl-9 pr-4 py-2 text-white focus:outline-none focus:border-white/30" 
+                                                placeholder="+1 (555) 000-0000"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-xs font-medium text-zinc-400 mb-1.5">Full Address</label>
+                                        <input 
+                                            value={settingsForm.address} 
+                                            onChange={e => setSettingsForm({...settingsForm, address: e.target.value})}
+                                            className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-white/30" 
+                                            placeholder="Street, State, Zip"
+                                        />
                                     </div>
                                 </div>
                             </div>
                             <div className="pt-6 border-t border-white/5 flex justify-end gap-3">
-                                <button className="px-4 py-2 rounded-lg text-zinc-400 hover:text-white">Cancel</button>
-                                <button className="px-6 py-2 rounded-lg bg-white text-black font-bold hover:bg-zinc-200">Save Changes</button>
+                                <button onClick={() => setSettingsForm({
+                                    name: user.name,
+                                    location: user.preferences?.location || '',
+                                    dateOfBirth: user.dateOfBirth || '',
+                                    contactNumber: user.contactNumber || '',
+                                    address: user.address || ''
+                                })} className="px-4 py-2 rounded-lg text-zinc-400 hover:text-white">Reset</button>
+                                
+                                <button 
+                                    onClick={handleSaveSettings} 
+                                    disabled={saveSettingsStatus !== 'idle'}
+                                    className={`px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-all ${
+                                        saveSettingsStatus === 'saved' 
+                                            ? 'bg-emerald-500 text-white' 
+                                            : saveSettingsStatus === 'saving'
+                                                ? 'bg-zinc-600 text-zinc-300'
+                                                : 'bg-white text-black hover:bg-zinc-200'
+                                    }`}
+                                >
+                                    {saveSettingsStatus === 'saving' && <Loader2 className="w-4 h-4 animate-spin" />}
+                                    {saveSettingsStatus === 'saved' && <CheckCircle className="w-4 h-4" />}
+                                    {saveSettingsStatus === 'idle' ? 'Save Changes' : (saveSettingsStatus === 'saved' ? 'Saved' : 'Saving...')}
+                                </button>
                             </div>
                         </div>
                     )}

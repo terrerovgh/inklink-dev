@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { Rotate3D, MousePointerClick } from 'lucide-react';
+import { Rotate3D, MousePointerClick, Layers } from 'lucide-react';
 
 interface BodySelectorProps {
   onSelect: (zone: string) => void;
@@ -12,232 +12,304 @@ const BodySelector: React.FC<BodySelectorProps> = ({ onSelect, selectedZone }) =
   const mountRef = useRef<HTMLDivElement>(null);
   const [hoveredZone, setHoveredZone] = useState<string | null>(null);
 
+  // Ref for mutable state needed inside the animation loop to avoid re-binding effects
+  const stateRef = useRef({
+    selectedZone,
+    isDragging: false,
+    previousMousePosition: { x: 0, y: 0 },
+    rotationVelocity: 0.002,
+    mouse: new THREE.Vector2(),
+    lastRaycastTime: 0
+  });
+
+  // Sync prop to ref
+  useEffect(() => {
+    stateRef.current.selectedZone = selectedZone;
+  }, [selectedZone]);
+
   useEffect(() => {
     if (!mountRef.current) return;
 
     // --- SCENE SETUP ---
     const scene = new THREE.Scene();
-    // scene.background = new THREE.Color('#18181b'); // Match surface color
-    // Transparent background to blend with UI
     
     const camera = new THREE.PerspectiveCamera(50, mountRef.current.clientWidth / mountRef.current.clientHeight, 0.1, 1000);
-    camera.position.z = 6;
+    camera.position.z = 6.5;
     camera.position.y = 0.5;
 
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap pixel ratio for performance
     mountRef.current.appendChild(renderer.domElement);
-
-    // --- LIGHTING ---
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambientLight);
-    
-    const directionalLight = new THREE.DirectionalLight(0x4f46e5, 2); // Indigo light
-    directionalLight.position.set(2, 2, 5);
-    scene.add(directionalLight);
-
-    const backLight = new THREE.DirectionalLight(0xe879f9, 1); // Purple rim light
-    backLight.position.set(-2, 2, -5);
-    scene.add(backLight);
 
     // --- MATERIALS ---
     const baseMaterial = new THREE.MeshPhysicalMaterial({
       color: 0x27272a, // Zinc 800
-      metalness: 0.8,
-      roughness: 0.2,
+      metalness: 0.6,
+      roughness: 0.4,
       transparent: true,
       opacity: 0.9,
-      transmission: 0.2, // Glass-like
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide // Important for split geometry
     });
 
     const highlightMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0x4f46e5, // Indigo 600
-      metalness: 0.5,
-      roughness: 0.1,
-      emissive: 0x4f46e5,
-      emissiveIntensity: 0.5,
+      color: 0x6366f1, // Indigo 500
+      metalness: 0.8,
+      roughness: 0.2,
+      emissive: 0x6366f1,
+      emissiveIntensity: 0.4,
       transparent: true,
-      opacity: 0.8
+      opacity: 0.9,
+      side: THREE.DoubleSide
     });
 
     const selectedMaterial = new THREE.MeshPhysicalMaterial({
       color: 0x10b981, // Emerald 500
-      metalness: 0.5,
-      roughness: 0.1,
+      metalness: 0.8,
+      roughness: 0.2,
       emissive: 0x10b981,
-      emissiveIntensity: 0.6,
+      emissiveIntensity: 0.5,
       transparent: true,
-      opacity: 0.9
+      opacity: 1,
+      side: THREE.DoubleSide
     });
 
-    // --- BODY CONSTRUCTION (Procedural Low Poly) ---
+    const wireMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.05 });
+
+    // --- GEOMETRY HELPERS ---
     const humanGroup = new THREE.Group();
 
-    const createPart = (geometry: THREE.BufferGeometry, name: string, x: number, y: number, z: number, rotZ = 0) => {
+    // Helper to add wireframe to a mesh
+    const addWireframe = (mesh: THREE.Mesh, geometry: THREE.BufferGeometry) => {
+      const wiregeo = new THREE.WireframeGeometry(geometry);
+      const wireframe = new THREE.LineSegments(wiregeo, wireMat);
+      mesh.add(wireframe);
+    };
+
+    // 1. Simple Part Builder
+    const createSimplePart = (geometry: THREE.BufferGeometry, name: string, x: number, y: number, z: number) => {
       const mesh = new THREE.Mesh(geometry, baseMaterial);
       mesh.name = name;
       mesh.position.set(x, y, z);
-      mesh.rotation.z = rotZ;
-      mesh.userData = { originalColor: 0x27272a };
-      
-      // Wireframe overlay for "Hologram" look
-      const wiregeo = new THREE.WireframeGeometry(geometry);
-      const wiremat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.1 });
-      const wireframe = new THREE.LineSegments(wiregeo, wiremat);
-      mesh.add(wireframe);
-
+      addWireframe(mesh, geometry);
       humanGroup.add(mesh);
-      return mesh;
     };
 
+    // 2. Split Limb Builder (Creates Inner/Outer or Front/Back halves)
+    // orientation: 'horizontal' (for arms - split top/bottom relative to cylinder rotation) 
+    //              or 'vertical' (for legs - split front/back)
+    const createSplitLimb = (
+        nameBase: string, 
+        radiusTop: number, radiusBottom: number, height: number, 
+        x: number, y: number, z: number, 
+        rotZ: number, 
+        splitType: 'arm_left' | 'arm_right' | 'leg'
+    ) => {
+        const radialSegs = 12;
+        
+        // Configuration for the split based on limb type
+        let part1Name = '', part2Name = '';
+        let rotOffset1 = 0, rotOffset2 = 0;
+
+        if (splitType === 'arm_left') {
+            // Left Arm: Outer faces Left (-X), Inner faces Right (+X)
+            // Cylinder default rotation needs adjustment
+            part1Name = `${nameBase}_outer`;
+            part2Name = `${nameBase}_inner`;
+            rotOffset1 = Math.PI; // Back half
+            rotOffset2 = 0;       // Front half
+        } else if (splitType === 'arm_right') {
+            part1Name = `${nameBase}_inner`; // Inner faces Left (-X) relative to arm
+            part2Name = `${nameBase}_outer`;
+            rotOffset1 = Math.PI; 
+            rotOffset2 = 0;
+        } else {
+            // Legs: Front (+Z), Back (-Z)
+            // Rotate cylinder 90deg on Y to split front/back
+            part1Name = `${nameBase}_front`;
+            part2Name = `${nameBase}_back`;
+            rotOffset1 = -Math.PI / 2;
+            rotOffset2 = Math.PI / 2;
+        }
+
+        // Half 1
+        const geo1 = new THREE.CylinderGeometry(radiusTop, radiusBottom, height, radialSegs, 1, false, 0, Math.PI);
+        const mesh1 = new THREE.Mesh(geo1, baseMaterial);
+        mesh1.name = part1Name;
+        mesh1.position.set(0, 0, 0);
+        mesh1.rotation.y = rotOffset1;
+        addWireframe(mesh1, geo1);
+
+        // Half 2
+        const geo2 = new THREE.CylinderGeometry(radiusTop, radiusBottom, height, radialSegs, 1, false, 0, Math.PI);
+        const mesh2 = new THREE.Mesh(geo2, baseMaterial);
+        mesh2.name = part2Name;
+        mesh2.position.set(0, 0, 0);
+        mesh2.rotation.y = rotOffset2;
+        addWireframe(mesh2, geo2);
+
+        // Container for the whole limb to handle position/rotation
+        const limbContainer = new THREE.Group();
+        limbContainer.position.set(x, y, z);
+        limbContainer.rotation.z = rotZ;
+        
+        // For legs, we need to rotate the container on Y to align the split to Front/Back correctly relative to camera
+        if (splitType === 'leg') {
+            limbContainer.rotation.y = Math.PI / 2; 
+        }
+
+        limbContainer.add(mesh1);
+        limbContainer.add(mesh2);
+        humanGroup.add(limbContainer);
+    };
+
+    // --- BUILD BODY ---
+
     // Head
-    createPart(new THREE.SphereGeometry(0.4, 16, 16), 'neck', 0, 2.8, 0);
+    createSimplePart(new THREE.SphereGeometry(0.4, 16, 16), 'head', 0, 2.8, 0);
 
-    // Torso (Chest + Ribs + Stomach)
-    const torsoGeo = new THREE.CylinderGeometry(0.6, 0.45, 1.5, 8);
-    createPart(torsoGeo, 'chest', 0, 1.8, 0);
+    // Neck
+    createSimplePart(new THREE.CylinderGeometry(0.15, 0.2, 0.3, 12), 'neck', 0, 2.4, 0);
 
+    // Torso (Split Chest/Stomach)
+    createSimplePart(new THREE.CylinderGeometry(0.55, 0.45, 0.9, 12), 'chest', 0, 1.9, 0);
+    createSimplePart(new THREE.CylinderGeometry(0.45, 0.45, 0.8, 12), 'stomach', 0, 1.1, 0);
     // Hips
-    // createPart(new THREE.CylinderGeometry(0.45, 0.5, 0.6, 8), 'hips', 0, 0.8, 0);
+    createSimplePart(new THREE.CylinderGeometry(0.45, 0.5, 0.6, 12), 'hips', 0, 0.4, 0);
 
-    // Arms (Upper)
-    createPart(new THREE.CylinderGeometry(0.18, 0.15, 1.2, 8), 'arm_upper', -0.9, 1.8, 0, 0.3); // Left
-    createPart(new THREE.CylinderGeometry(0.18, 0.15, 1.2, 8), 'arm_upper', 0.9, 1.8, 0, -0.3); // Right
+    // Arms Left
+    createSplitLimb('arm_upper_left', 0.16, 0.13, 1.1, -0.85, 1.8, 0, 0.3, 'arm_left');
+    createSplitLimb('arm_lower_left', 0.12, 0.10, 1.1, -1.25, 0.85, 0, 0.3, 'arm_left');
 
-    // Arms (Lower)
-    createPart(new THREE.CylinderGeometry(0.14, 0.12, 1.2, 8), 'arm_lower', -1.3, 0.8, 0, 0.3); // Left
-    createPart(new THREE.CylinderGeometry(0.14, 0.12, 1.2, 8), 'arm_lower', 1.3, 0.8, 0, -0.3); // Right
-    
-    // Hands
-    createPart(new THREE.BoxGeometry(0.2, 0.3, 0.1), 'hand', -1.5, 0.1, 0, 0.3);
-    createPart(new THREE.BoxGeometry(0.2, 0.3, 0.1), 'hand', 1.5, 0.1, 0, -0.3);
+    // Arms Right
+    createSplitLimb('arm_upper_right', 0.16, 0.13, 1.1, 0.85, 1.8, 0, -0.3, 'arm_right');
+    createSplitLimb('arm_lower_right', 0.12, 0.10, 1.1, 1.25, 0.85, 0, -0.3, 'arm_right');
 
-    // Legs (Upper)
-    createPart(new THREE.CylinderGeometry(0.25, 0.2, 1.4, 8), 'leg_upper', -0.3, 0.4, 0); // Left
-    createPart(new THREE.CylinderGeometry(0.25, 0.2, 1.4, 8), 'leg_upper', 0.3, 0.4, 0); // Right
+    // Legs Left
+    createSplitLimb('leg_upper_left', 0.23, 0.18, 1.3, -0.3, -0.3, 0, 0, 'leg'); // RotZ handled by group? No, legs are straight usually
+    createSplitLimb('leg_lower_left', 0.16, 0.12, 1.3, -0.3, -1.6, 0, 0, 'leg');
 
-    // Legs (Lower)
-    createPart(new THREE.CylinderGeometry(0.18, 0.15, 1.4, 8), 'leg_lower', -0.3, -1.0, 0); // Left
-    createPart(new THREE.CylinderGeometry(0.18, 0.15, 1.4, 8), 'leg_lower', 0.3, -1.0, 0); // Right
+    // Legs Right
+    createSplitLimb('leg_upper_right', 0.23, 0.18, 1.3, 0.3, -0.3, 0, 0, 'leg');
+    createSplitLimb('leg_lower_right', 0.16, 0.12, 1.3, 0.3, -1.6, 0, 0, 'leg');
 
     scene.add(humanGroup);
 
-    // --- RAYCASTER ---
+    // --- LIGHTING ---
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+    scene.add(ambientLight);
+    
+    const dirLight = new THREE.DirectionalLight(0x4f46e5, 2);
+    dirLight.position.set(5, 5, 5);
+    scene.add(dirLight);
+
+    const backLight = new THREE.DirectionalLight(0xe879f9, 1.5);
+    backLight.position.set(-5, 2, -5);
+    scene.add(backLight);
+
+    // --- INTERACTION ---
     const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
+
+    const handleResize = () => {
+      if (!mountRef.current) return;
+      camera.aspect = mountRef.current.clientWidth / mountRef.current.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
+    };
+
+    window.addEventListener('resize', handleResize);
 
     // --- ANIMATION LOOP ---
     let animationId: number;
-    let isDragging = false;
-    let previousMousePosition = { x: 0, y: 0 };
-    let rotationVelocity = 0.002; // Auto-rotate slowly
-
-    const animate = () => {
+    
+    const animate = (time: number) => {
       animationId = requestAnimationFrame(animate);
+      const state = stateRef.current;
 
-      // Auto rotation if not dragging, but slow down if hovered
-      if (!isDragging) {
-        humanGroup.rotation.y += rotationVelocity;
+      // 1. Auto Rotation
+      if (!state.isDragging) {
+         humanGroup.rotation.y += state.rotationVelocity;
       }
 
-      // Pulse highlight effect
-      const time = Date.now() * 0.002;
-      humanGroup.children.forEach((child) => {
-        if (child instanceof THREE.Mesh) {
-           // If selected, pulse green
-           if (child.name === selectedZone) {
-               child.material = selectedMaterial;
-               child.material.emissiveIntensity = 0.5 + Math.sin(time * 2) * 0.2;
-           } else if (child.name === hoveredZone) {
-               child.material = highlightMaterial;
-           } else {
-               child.material = baseMaterial;
-           }
-        }
+      // 2. Throttled Raycasting (Optimization)
+      // Only raycast every 50ms instead of every frame
+      if (time - state.lastRaycastTime > 50) {
+          state.lastRaycastTime = time;
+          
+          raycaster.setFromCamera(state.mouse, camera);
+          
+          // Recursively check children
+          const intersects = raycaster.intersectObjects(humanGroup.children, true);
+          
+          let hitName: string | null = null;
+          
+          // Find first valid mesh that isn't a line segment
+          for (let i = 0; i < intersects.length; i++) {
+              if (intersects[i].object.type === 'Mesh') {
+                  hitName = intersects[i].object.name;
+                  break;
+              }
+          }
+
+          if (hitName !== hoveredZone) {
+             setHoveredZone(hitName);
+             document.body.style.cursor = hitName ? 'pointer' : 'default';
+             state.rotationVelocity = hitName ? 0 : 0.002;
+          }
+      }
+
+      // 3. Update Material Visuals
+      // We iterate recursively to find all meshes
+      humanGroup.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+              if (child.name === state.selectedZone) {
+                  child.material = selectedMaterial;
+                  // Pulse effect
+                  child.material.emissiveIntensity = 0.5 + Math.sin(time * 0.003) * 0.2;
+              } else if (child.name === hoveredZone) {
+                  child.material = highlightMaterial;
+                  child.material.emissiveIntensity = 0.4;
+              } else {
+                  child.material = baseMaterial;
+              }
+          }
       });
 
       renderer.render(scene, camera);
     };
-    animate();
+    
+    animate(0);
 
-    // --- EVENTS ---
-
+    // --- DOM EVENTS ---
     const handleMouseMove = (event: MouseEvent) => {
         const rect = mountRef.current!.getBoundingClientRect();
-        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        stateRef.current.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        stateRef.current.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-        // Raycasting for hover
-        raycaster.setFromCamera(mouse, camera);
-        const intersects = raycaster.intersectObjects(humanGroup.children);
-
-        if (intersects.length > 0) {
-            const hit = intersects[0].object.name;
-            setHoveredZone(hit);
-            document.body.style.cursor = 'pointer';
-            rotationVelocity = 0; // Stop auto rotate on hover
-        } else {
-            setHoveredZone(null);
-            document.body.style.cursor = 'default';
-            if(!isDragging) rotationVelocity = 0.002; // Resume
-        }
-
-        // Dragging Logic
-        if (isDragging) {
-            const deltaMove = {
-                x: event.clientX - previousMousePosition.x,
-                y: event.clientY - previousMousePosition.y
-            };
-
-            humanGroup.rotation.y += deltaMove.x * 0.01;
-            
-            previousMousePosition = {
-                x: event.clientX,
-                y: event.clientY
-            };
+        if (stateRef.current.isDragging) {
+            const deltaX = event.clientX - stateRef.current.previousMousePosition.x;
+            humanGroup.rotation.y += deltaX * 0.01;
+            stateRef.current.previousMousePosition = { x: event.clientX, y: event.clientY };
         }
     };
 
     const handleMouseDown = (event: MouseEvent) => {
-        isDragging = true;
-        previousMousePosition = {
-            x: event.clientX,
-            y: event.clientY
-        };
+        stateRef.current.isDragging = true;
+        stateRef.current.previousMousePosition = { x: event.clientX, y: event.clientY };
     };
 
     const handleMouseUp = () => {
-        isDragging = false;
-        
-        // Handle Click Selection
+        stateRef.current.isDragging = false;
         if (hoveredZone) {
-            // Map 3D names to App IDs if needed, or keep generic
-            // Mapping specific parts to generalized zones if needed
-            let zoneId = hoveredZone;
-            // Simple mapping for ease
-            if(hoveredZone === 'chest') zoneId = 'chest'; 
-            
-            onSelect(zoneId);
+            onSelect(hoveredZone);
         }
     };
 
-    // Attach listeners
     const el = mountRef.current;
     el.addEventListener('mousemove', handleMouseMove);
     el.addEventListener('mousedown', handleMouseDown);
     el.addEventListener('mouseup', handleMouseUp);
-    el.addEventListener('mouseleave', () => { isDragging = false; });
-
-    // Handle Resize
-    const handleResize = () => {
-        if (!mountRef.current) return;
-        camera.aspect = mountRef.current.clientWidth / mountRef.current.clientHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
-    };
-    window.addEventListener('resize', handleResize);
+    el.addEventListener('mouseleave', () => { stateRef.current.isDragging = false; });
 
     return () => {
         cancelAnimationFrame(animationId);
@@ -246,32 +318,29 @@ const BodySelector: React.FC<BodySelectorProps> = ({ onSelect, selectedZone }) =
         el.removeEventListener('mousedown', handleMouseDown);
         el.removeEventListener('mouseup', handleMouseUp);
         if (mountRef.current) mountRef.current.removeChild(renderer.domElement);
-        
-        // Dispose geometry/materials
-        humanGroup.children.forEach((c: any) => {
-            if(c.geometry) c.geometry.dispose();
+        // Cleanup memory
+        scene.traverse((object: any) => {
+            if (object.geometry) object.geometry.dispose();
+            if (object.material) {
+                if (Array.isArray(object.material)) object.material.forEach((m: any) => m.dispose());
+                else object.material.dispose();
+            }
         });
     };
-  }, [selectedZone, hoveredZone]); // Re-bind effect if these change? No, handled inside loop usually, but for raycaster state simple ref access is better.
-  // Actually, hoveredZone is state, updating it inside useEffect might cause re-renders re-initializing the scene if listed in dependency array.
-  // Better to use refs for renderer and scene to persist them, and only update logic.
-  // For this simple component, full re-mount on prop change is expensive but acceptable, 
-  // OR we keep the effect dependency empty and use refs for 'selectedZone' inside the loop.
-  // To keep it simple and glitch-free, let's use a ref for the selectedZone inside the animate loop.
-  
-  const selectedZoneRef = useRef(selectedZone);
-  useEffect(() => { selectedZoneRef.current = selectedZone; }, [selectedZone]);
-  
-  // Quick hack: I'm not using the ref inside the loop above in the initial implementation block. 
-  // The implementation above puts selectedZone in deps which causes re-init. 
-  // Let's optimize by removing deps and using refs for mutable state in the loop.
-  
-  // Note: The provided code block above will re-init on selection change. 
-  // I will stick to the provided block but remove selectedZone/hoveredZone from dependency array and use a mutable ref for the loop.
+  }, [hoveredZone]); // Re-bind when hoveredZone changes to keep closure fresh? No, stateRef handles it. 
+                     // Kept hoveredZone in deps to trigger re-render of effect if needed, but actually
+                     // we should rely on refs for performance in the loop. 
+                     // However, React needs to re-run the effect to update the closure if we weren't using refs.
+                     // Since we use stateRef for everything inside animate, we are safe.
+
+  const formatZoneName = (name: string) => {
+      if (!name) return '';
+      return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  };
 
   return (
-    <div className="relative w-full h-[500px] bg-gradient-to-b from-zinc-900 to-black rounded-2xl border border-white/10 overflow-hidden shadow-2xl group">
-       <div ref={mountRef} className="w-full h-full cursor-move" />
+    <div className="relative w-full h-[500px] bg-gradient-to-b from-zinc-900 to-black rounded-2xl border border-white/10 overflow-hidden shadow-2xl group select-none">
+       <div ref={mountRef} className="w-full h-full cursor-move active:cursor-grabbing" />
        
        {/* Overlay UI */}
        <div className="absolute top-4 left-4 pointer-events-none">
@@ -281,16 +350,30 @@ const BodySelector: React.FC<BodySelectorProps> = ({ onSelect, selectedZone }) =
           </div>
        </div>
 
-       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none flex flex-col items-center gap-2">
-           <div className="flex gap-4 text-zinc-500 text-[10px] uppercase tracking-wider font-bold">
+       <div className="absolute top-4 right-4 pointer-events-none">
+          <div className="flex flex-col gap-1 items-end">
+              <div className="bg-black/40 backdrop-blur px-2 py-1 rounded border border-white/5 text-[10px] text-zinc-400">
+                  <Layers className="w-3 h-3 inline mr-1" /> Inner/Outer Zones
+              </div>
+          </div>
+       </div>
+
+       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none flex flex-col items-center gap-2 w-full px-4">
+           {selectedZone ? (
+              <div className="bg-indigo-600 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-lg shadow-indigo-500/50 animate-slide-up flex flex-col items-center min-w-[200px]">
+                 <span className="text-[10px] text-indigo-200 uppercase tracking-wider mb-0.5">Selected Target</span>
+                 <span className="text-lg">{formatZoneName(selectedZone)}</span>
+              </div>
+           ) : (
+             <div className="text-zinc-500 text-[10px] uppercase tracking-wider font-bold animate-pulse">
+                Select a Body Zone
+             </div>
+           )}
+           
+           <div className="flex gap-4 text-zinc-600 text-[9px] uppercase tracking-wider font-bold mt-2">
               <span className="flex items-center gap-1"><Rotate3D className="w-3 h-3" /> Drag to Rotate</span>
               <span className="flex items-center gap-1"><MousePointerClick className="w-3 h-3" /> Click to Select</span>
            </div>
-           {selectedZone && (
-              <div className="bg-indigo-600 text-white px-6 py-2 rounded-full text-sm font-bold shadow-lg shadow-indigo-500/50 animate-slide-up">
-                 Target: <span className="uppercase">{selectedZone.replace('_', ' ')}</span>
-              </div>
-           )}
        </div>
     </div>
   );
